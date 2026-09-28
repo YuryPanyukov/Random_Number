@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Иконка: кубик (dice) с пиппами — «случайные числа».
+     Вписан в safe zone 66x66dp центра 108x108 viewport. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Тело кубика со скруглением -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M30,30 h48 a8,8 0 0 1 8,8 v32 a8,8 0 0 1 -8,8 h-48 a8,8 0 0 1 -8,-8 v-32 a8,8 0 0 1 8,-8 z" />
+
+    <!-- Пиппы (5 точек) -->
+    <path
+        android:fillColor="#FF4655C6"
+        android:pathData="M38,38 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+    <path
+        android:fillColor="#FF4655C6"
+        android:pathData="M70,38 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+    <path
+        android:fillColor="#FFB8860B"
+        android:pathData="M54,54 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+    <path
+        android:fillColor="#FF4655C6"
+        android:pathData="M38,70 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+    <path
+        android:fillColor="#FF4655C6"
+        android:pathData="M70,70 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+</vector>

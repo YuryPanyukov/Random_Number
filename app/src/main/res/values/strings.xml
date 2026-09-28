@@ -1,0 +1,39 @@
+<resources>
+    <string name="app_name">Случайные числа</string>
+
+    <!-- Общие -->
+    <string name="back">Назад</string>
+    <string name="cancel">Отмена</string>
+    <string name="delete">Удалить</string>
+    <string name="loading">Загрузка…</string>
+
+    <!-- Главный экран -->
+    <string name="new_session">Новая сессия</string>
+    <string name="no_sessions">Сохранённых сессий нет</string>
+    <string name="no_sessions_hint">Нажмите «Новая сессия», чтобы начать генерацию.</string>
+    <string name="delete_session_title">Удалить сессию?</string>
+    <string name="delete_session_message">Сессия «%s» будет удалена без возможности восстановления.</string>
+    <string name="session_generated_count">Сгенерировано чисел: %d</string>
+    <string name="session_progress">Выбрано %1$d из %2$d</string>
+
+    <!-- Экран сессии -->
+    <string name="generation">Генерация</string>
+    <string name="last_number">Последнее число</string>
+    <string name="generate">Сгенерировать</string>
+    <string name="reset_numbers">Сбросить числа</string>
+    <string name="history">История</string>
+    <string name="history_hide">Скрыть</string>
+    <string name="history_show">Показать</string>
+    <string name="exhausted_title">Все числа выбраны!</string>
+    <string name="exhausted_message">В диапазоне не осталось чисел без повторений. Создайте новую сессию или продолжите текущую со сбросом ранее выбранных чисел.</string>
+    <string name="continue_reset">Продолжить со сбросом</string>
+
+    <!-- Новая сессия -->
+    <string name="range_from">От</string>
+    <string name="range_to">До</string>
+    <string name="invalid_number">Введите целое число</string>
+    <string name="range_error">«От» не может быть больше «До»</string>
+    <string name="allow_repeats">Без повторений</string>
+    <string name="allow_repeats_hint">Ранее сгенерированные числа не будут появляться снова</string>
+    <string name="start_session">Начать генерацию</string>
+</resources>
