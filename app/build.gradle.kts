@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -11,7 +12,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "CodeSyS.Random_Number"
+        // Идентификатор приложения должен быть lowercase и без подчёркиваний,
+        // иначе публикация в Google Play невозможна.
+        applicationId = "ru.codesys.randomnumber"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
@@ -22,9 +25,12 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
@@ -58,4 +64,16 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+ktlint {
+    android.set(true)
+    ignoreFailures.set(false)
+    filter {
+        exclude { element -> element.file.path.contains("${File.separator}build${File.separator}") }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("ktlintCheck")
 }

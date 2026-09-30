@@ -13,3 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Артефакты сборки
+/app/build/
+/app/release/
+*.aab
+*.apk
+
+# Скриншоты и дампы, снятые при ручной проверке на эмуляторе
+/shot_*.png
+/ui_dump.xml
+/emulator.log

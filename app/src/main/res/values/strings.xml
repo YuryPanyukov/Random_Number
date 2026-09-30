@@ -5,6 +5,8 @@
     <string name="back">Назад</string>
     <string name="cancel">Отмена</string>
     <string name="delete">Удалить</string>
+    <string name="copy">Копировать</string>
+    <string name="share">Поделиться</string>
     <string name="loading">Загрузка…</string>
 
     <!-- Главный экран -->
@@ -20,13 +22,58 @@
     <string name="generation">Генерация</string>
     <string name="last_number">Последнее число</string>
     <string name="generate">Сгенерировать</string>
+    <string name="batch_size">Сколько чисел генерировать</string>
+    <string name="batch_partial_notice">Выдано меньше, чем запрошено: просили %1$d, а в диапазоне выбрано уже %2$d из %3$d</string>
+    <string name="undo_last">Убрать последнее</string>
     <string name="reset_numbers">Сбросить числа</string>
+    <string name="add_manual">Добавить вручную</string>
+    <string name="out_of_range">Число вне диапазона %1$d..%2$d</string>
+    <string name="duplicate_number">Такое число уже есть в истории</string>
     <string name="history">История</string>
+    <plurals name="history_count">
+        <item quantity="one">%d число</item>
+        <item quantity="few">%d числа</item>
+        <item quantity="many">%d чисел</item>
+        <item quantity="other">%d числа</item>
+    </plurals>
     <string name="history_hide">Скрыть</string>
     <string name="history_show">Показать</string>
+    <string name="history_show_more">Показать ещё (%1$d)</string>
+    <string name="long_press_hint">Долгое нажатие — действия</string>
     <string name="exhausted_title">Все числа выбраны!</string>
     <string name="exhausted_message">В диапазоне не осталось чисел без повторений. Создайте новую сессию или продолжите текущую со сбросом ранее выбранных чисел.</string>
     <string name="continue_reset">Продолжить со сбросом</string>
+
+    <!-- Статистика сессии -->
+    <string name="stats_title">Статистика</string>
+    <string name="stats_empty">История пуста — статистика появится после генерации</string>
+    <string name="stats_generated">Выдано</string>
+    <string name="stats_unique">Уникальных</string>
+    <string name="stats_duplicates">Повторов</string>
+    <string name="stats_range">Диапазон значений</string>
+    <string name="stats_range_value">%1$d..%2$d</string>
+    <string name="stats_average">Среднее</string>
+    <string name="stats_median">Медиана</string>
+    <string name="stats_most_frequent">Чаще всего</string>
+    <string name="stats_least_frequent">Реже всего</string>
+    <string name="show_stats">Статистика</string>
+
+    <!-- Экспорт и seed -->
+    <string name="export_history">Сохранить историю</string>
+    <string name="export_sessions">Сохранить все сессии</string>
+    <string name="import_sessions">Импорт сессий</string>
+    <string name="import_done">Импортировано сессий: %1$d</string>
+    <string name="import_failed">Не удалось прочитать файл с сессиями</string>
+    <string name="export_sessions_done">Сохранено сессий: %1$d</string>
+    <string name="export_format_csv">CSV (с временем)</string>
+    <string name="export_format_txt">TXT (список чисел)</string>
+    <string name="export_format_json">JSON (сессия целиком)</string>
+    <string name="seed">Seed (воспроизводимость)</string>
+    <string name="seed_hint">С одинаковым seed генерация повторяется</string>
+    <string name="seed_set">Зафиксировать</string>
+    <string name="seed_clear">Сбросить</string>
+    <string name="seed_invalid">Введите целое число</string>
+    <string name="seed_active">Seed: %1$d</string>
 
     <!-- Новая сессия -->
     <string name="range_from">От</string>
@@ -36,4 +83,30 @@
     <string name="allow_repeats">Без повторений</string>
     <string name="allow_repeats_hint">Ранее сгенерированные числа не будут появляться снова</string>
     <string name="start_session">Начать генерацию</string>
+
+    <!-- Пресеты диапазонов -->
+    <string name="presets">Быстрые диапазоны</string>
+    <string name="preset_dice">Кубик 1–6</string>
+    <string name="preset_coin">Монета 0–1</string>
+    <string name="preset_lottery">Лотерея 1–45</string>
+    <string name="preset_hundred">Сотня 1–100</string>
+
+    <!-- Настройки -->
+    <string name="settings">Настройки</string>
+    <string name="theme">Тема</string>
+    <string name="theme_system">Системная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="accent_color">Акцентный цвет</string>
+    <string name="accent_dynamic">Динамический</string>
+    <string name="accent_indigo">Индиго</string>
+    <string name="accent_teal">Бирюза</string>
+    <string name="accent_rose">Роза</string>
+    <string name="feedback_section">Отклик при генерации</string>
+    <string name="vibration">Вибрация</string>
+    <string name="vibration_hint">Короткая вибрация при выдаче числа</string>
+    <string name="sound">Звук</string>
+    <string name="sound_hint">Короткий сигнал при выдаче числа</string>
+    <string name="feedback_per_number">Отклик на каждое число</string>
+    <string name="feedback_per_number_hint">В батче сигналить на каждое число, а не один раз. Иначе один сигнал на весь батч.</string>
 </resources>

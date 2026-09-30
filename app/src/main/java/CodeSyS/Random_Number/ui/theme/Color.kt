@@ -13,3 +13,9 @@ val Amber40 = Color(0xFFB8860B) // золотой акцент («выигрыш
 val Indigo80 = Color(0xFFBAC3FF)
 val IndigoGrey80 = Color(0xFFC4C5DD)
 val Amber80 = Color(0xFFFFDF9B)
+
+// Дополнительные акценты (выбор в настройках)
+val Teal40 = Color(0xFF00696D)
+val Teal80 = Color(0xFF70F6FA)
+val Rose40 = Color(0xFF9C4146)
+val Rose80 = Color(0xFFFFB3AB)

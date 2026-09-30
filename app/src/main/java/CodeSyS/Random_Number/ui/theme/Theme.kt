@@ -1,5 +1,7 @@
 package CodeSyS.Random_Number.ui.theme
 
+import CodeSyS.Random_Number.data.AccentColor
+import CodeSyS.Random_Number.data.ThemeMode
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -22,32 +24,57 @@ private val LightColorScheme = lightColorScheme(
     tertiary = Amber40,
 )
 
+/** Основной цвет палитры для выбранного акцента. */
+private fun primaryFor(accent: AccentColor, dark: Boolean): androidx.compose.ui.graphics.Color =
+    when (accent) {
+        AccentColor.DYNAMIC, AccentColor.INDIGO -> if (dark) Indigo80 else Indigo40
+        AccentColor.TEAL -> if (dark) Teal80 else Teal40
+        AccentColor.ROSE -> if (dark) Rose80 else Rose40
+    }
+
 /**
  * Тема приложения «Случайные числа».
  *
- * Индиго-палитра с золотым акцентом; на Android 12+ используется
- * динамическая тема системы ([dynamicColor] = `true` по умолчанию).
+ * Индиго-палитра с золотым акцентом; на Android 12+ при акценте
+ * [AccentColor.DYNAMIC] используется динамическая тема системы.
+ *
+ * @param themeMode режим темы: следовать системе / светлая / тёмная.
+ * @param accent выбираемый акцентный цвет.
  */
 @Composable
-fun СлучайныеЧислаTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+fun RandomNumbersTheme(
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accent: AccentColor = AccentColor.DYNAMIC,
+    content: @Composable () -> Unit,
 ) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        accent == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> darkColorScheme(
+            primary = primaryFor(accent, dark = true),
+            secondary = IndigoGrey80,
+            tertiary = Amber80,
+        )
+
+        else -> lightColorScheme(
+            primary = primaryFor(accent, dark = false),
+            secondary = IndigoGrey40,
+            tertiary = Amber40,
+        )
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content
+        content = content,
     )
 }

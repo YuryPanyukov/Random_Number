@@ -1,5 +1,6 @@
 package CodeSyS.Random_Number.ui
 
+import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -8,11 +9,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 
 private object Routes {
     const val HOME = "home"
     const val NEW_SESSION = "new_session"
+    const val SETTINGS = "settings"
     const val SESSION = "session/{sessionId}"
     fun session(id: String) = "session/$id"
 }
@@ -27,6 +28,13 @@ fun AppNav() {
             HomeScreen(
                 onNewSession = { navController.navigate(Routes.NEW_SESSION) },
                 onOpenSession = { id -> navController.navigate(Routes.session(id)) },
+                onSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -44,7 +52,9 @@ fun AppNav() {
 
             NewSessionScreen(
                 onBack = { navController.popBackStack() },
-                onCreated = viewModel::createSession,
+                onCreated = {
+                    // Переход выполняется по событию createdSessionId.
+                },
             )
         }
 

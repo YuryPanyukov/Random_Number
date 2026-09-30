@@ -1,6 +1,14 @@
 package CodeSyS.Random_Number.ui
 
+import CodeSyS.Random_Number.R
+import CodeSyS.Random_Number.domain.RangePreset
+import CodeSyS.Random_Number.ui.newsession.NewSessionUiState
+import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
+import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,44 +32,31 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import CodeSyS.Random_Number.R
-import CodeSyS.Random_Number.ui.theme.СлучайныеЧислаTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
- * Экран параметров новой сессии: диапазон «от…до» и флаг «без повторений».
+ * Экран параметров новой сессии: пресеты диапазонов, диапазон «от…до»
+ * и флаг «без повторений».
  *
- * @param onCreated вызывается с корректными параметрами после валидации.
+ * Состояние формы — в [NewSessionViewModel], поэтому переживает
+ * пересоздание Activity.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NewSessionScreen(
     onBack: () -> Unit,
-    onCreated: (min: Int, max: Int, allowRepeats: Boolean) -> Unit,
+    onCreated: () -> Unit,
+    viewModel: NewSessionViewModel = viewModel(factory = NewSessionViewModelFactory),
 ) {
-    var minText by remember { mutableStateOf("1") }
-    var maxText by remember { mutableStateOf("100") }
-    // Свитч называется «Без повторений», поэтому храним именно его значение:
-    // включён = числа не повторяются (allowRepeats = false).
-    var withoutRepeats by remember { mutableStateOf(true) }
-    var minTouched by remember { mutableStateOf(false) }
-    var maxTouched by remember { mutableStateOf(false) }
-
-    val min = minText.toIntOrNull()
-    val max = maxText.toIntOrNull()
-    val minError = minTouched && (min == null || min > Int.MAX_VALUE)
-    val maxError = maxTouched && (max == null)
-    val rangeError = min != null && max != null && min > max
-    val canCreate = min != null && max != null && !rangeError
+    val state by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -77,95 +73,133 @@ fun NewSessionScreen(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-        ) {
-            OutlinedTextField(
-                value = minText,
-                onValueChange = {
-                    minText = it
-                    minTouched = true
-                },
-                label = { Text(stringResource(R.string.range_from)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = minError,
-                supportingText = if (minError) {
-                    { Text(stringResource(R.string.invalid_number)) }
-                } else null,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        NewSessionForm(
+            state = state,
+            contentPadding = innerPadding,
+            onMinChange = viewModel::setMin,
+            onMaxChange = viewModel::setMax,
+            onWithoutRepeatsChange = viewModel::setWithoutRepeats,
+            onPreset = viewModel::applyPreset,
+            onCreate = {
+                if (viewModel.createSession()) onCreated()
+            },
+        )
+    }
+}
 
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = maxText,
-                onValueChange = {
-                    maxText = it
-                    maxTouched = true
-                },
-                label = { Text(stringResource(R.string.range_to)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = maxError || rangeError,
-                supportingText = {
-                    when {
-                        maxError -> Text(stringResource(R.string.invalid_number))
-                        rangeError -> Text(stringResource(R.string.range_error))
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.allow_repeats),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.allow_repeats_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = withoutRepeats,
-                    onCheckedChange = { withoutRepeats = it },
+/** Содержимое формы: пресеты, поля диапазона, переключатель и кнопка. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NewSessionForm(
+    state: NewSessionUiState,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues,
+    onMinChange: (String) -> Unit,
+    onMaxChange: (String) -> Unit,
+    onWithoutRepeatsChange: (Boolean) -> Unit,
+    onPreset: (Int, Int, Boolean) -> Unit,
+    onCreate: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+    ) {
+        // Пресеты диапазонов: быстрый тап заполняет форму (1.5).
+        Text(
+            text = stringResource(R.string.presets),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RangePreset.entries.forEach { preset ->
+                AssistChip(
+                    onClick = { onPreset(preset.min, preset.max, preset.allowRepeats) },
+                    label = { Text(stringResource(preset.titleRes())) },
                 )
             }
+        }
 
-            if (withoutRepeats && min != null && max != null && !rangeError) {
-                Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = state.minText,
+            onValueChange = onMinChange,
+            label = { Text(stringResource(R.string.range_from)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = state.minError,
+            supportingText = if (state.minError) {
+                { Text(stringResource(R.string.invalid_number)) }
+            } else {
+                null
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = state.maxText,
+            onValueChange = onMaxChange,
+            label = { Text(stringResource(R.string.range_to)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = state.maxError || state.rangeError,
+            supportingText = {
+                when {
+                    state.maxError -> Text(stringResource(R.string.invalid_number))
+                    state.rangeError -> Text(stringResource(R.string.range_error))
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(
-                        R.string.session_progress,
-                        0,
-                        max.toLong() - min.toLong() + 1,
-                    ),
+                    text = stringResource(R.string.allow_repeats),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.allow_repeats_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Switch(
+                checked = state.withoutRepeats,
+                onCheckedChange = onWithoutRepeatsChange,
+            )
+        }
 
-            Spacer(Modifier.height(24.dp))
+        if (state.withoutRepeats && state.canCreate) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(
+                    R.string.session_progress,
+                    0,
+                    state.rangeSize,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
-            Button(
-                onClick = { onCreated(min!!, max!!, !withoutRepeats) },
-                enabled = canCreate,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.start_session))
-            }
+        Spacer(Modifier.height(24.dp))
+
+        Button(
+            onClick = onCreate,
+            enabled = state.canCreate,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.start_session))
         }
     }
 }
@@ -173,7 +207,24 @@ fun NewSessionScreen(
 @Preview(showBackground = true)
 @Composable
 private fun NewSessionScreenPreview() {
-    СлучайныеЧислаTheme {
-        NewSessionScreen(onBack = {}, onCreated = { _, _, _ -> })
+    RandomNumbersTheme {
+        NewSessionForm(
+            state = NewSessionUiState(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+            onMinChange = {},
+            onMaxChange = {},
+            onWithoutRepeatsChange = {},
+            onPreset = { _, _, _ -> },
+            onCreate = {},
+        )
     }
+}
+
+/** Локализованное название пресета. */
+@Composable
+private fun RangePreset.titleRes(): Int = when (this) {
+    RangePreset.DICE -> R.string.preset_dice
+    RangePreset.COIN -> R.string.preset_coin
+    RangePreset.LOTTERY -> R.string.preset_lottery
+    RangePreset.HUNDRED -> R.string.preset_hundred
 }
