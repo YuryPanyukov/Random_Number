@@ -104,12 +104,6 @@ fun SessionScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var exportMenuOpen by remember { mutableStateOf(false) }
-
-    // Читаем строку в момент композиции, чтобы snackbar не показывал
-    // текст предыдущей локали после смены конфигурации.
-    val exportDoneTemplate = stringResource(R.string.export_sessions_done)
-
     LaunchedEffect(sessionId) {
         if (sessionId != null) viewModel.loadSession(sessionId)
     }
@@ -137,10 +131,6 @@ fun SessionScreen(
                         shareText(context, event.text)
                     }
                 }
-
-                is SessionEvent.SessionsExported -> snackbarHostState.showSnackbar(
-                    exportDoneTemplate.format(event.count),
-                )
             }
         }
     }

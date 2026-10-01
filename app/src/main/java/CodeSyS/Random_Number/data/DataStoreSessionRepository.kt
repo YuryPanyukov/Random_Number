@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.sync.Mutex
 
 private const val TAG = "SessionRepository"
 
@@ -33,7 +32,7 @@ private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataS
  * - повреждённые записи пропускаются при чтении, логируются и **не
  *   затираются** следующей записью;
  * - данные из старого формата (одна JSON-строка) переносятся на лету;
- * - read-modify-write защищены [Mutex].
+ * - read-modify-write атомарны: `DataStore.edit` сам сериализует транзакции.
  */
 class DataStoreSessionRepository(
     private val context: Context,

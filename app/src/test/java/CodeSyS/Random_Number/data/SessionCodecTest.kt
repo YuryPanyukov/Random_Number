@@ -1,5 +1,10 @@
 package CodeSyS.Random_Number.data
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -132,6 +137,98 @@ class SessionCodecTest {
         """.trimIndent()
 
         assertNull(SessionCodec.decodeOne(withoutSeed)!!.seed)
+    }
+
+    // --- Payload: дискриминатор type (2.0) ---
+
+    @Test
+    fun `encode - payload has type discriminator and range fields`() {
+        val encoded = SessionCodec.encodeOne(sample)
+        val root = Json.parseToJsonElement(encoded).jsonObject
+        val payload = root.getValue("payload").jsonObject
+
+        assertEquals("numbers", payload.getValue("type").jsonPrimitive.content)
+        assertEquals(1, payload.getValue("min").jsonPrimitive.int)
+        assertEquals(10, payload.getValue("max").jsonPrimitive.int)
+        assertEquals(false, payload.getValue("allowRepeats").jsonPrimitive.boolean)
+        // Корень больше не содержит поля диапазона — они переехали в payload.
+        assertTrue("min" !in root)
+        assertTrue("max" !in root)
+        assertTrue("allowRepeats" !in root)
+    }
+
+    @Test
+    fun `decode - current payload format is readable`() {
+        val current = """
+            {"id":"z","title":"numbers",
+             "payload":{"type":"numbers","min":-5,"max":5,"allowRepeats":true},
+             "log":[{"value":1,"at":9}],"createdAt":0,"lastUsedAt":9,"seed":null}
+        """.trimIndent()
+
+        val decoded = SessionCodec.decodeOne(current)!!
+
+        assertEquals(-5, decoded.min)
+        assertEquals(5, decoded.max)
+        assertTrue(decoded.allowRepeats)
+        assertEquals(listOf(1), decoded.generated)
+    }
+
+    @Test
+    fun `decode - legacy flat fields are wrapped into payload`() {
+        val legacy = """
+            {"id":"x","title":"t","min":1,"max":5,"allowRepeats":true,
+             "log":[],"createdAt":0,"lastUsedAt":0}
+        """.trimIndent()
+
+        val decoded = SessionCodec.decodeOne(legacy)!!
+
+        assertEquals(SessionPayload.Numbers(min = 1, max = 5, allowRepeats = true), decoded.payload)
+        assertEquals(1, decoded.min)
+    }
+
+    @Test
+    fun `decode - legacy flat and legacy log formats combine`() {
+        val mixed = """
+            [{"id":"a","title":"t","min":1,"max":5,"allowRepeats":true,
+              "generated":[1,2],"createdAt":0,"lastUsedAt":0},
+             {"id":"b","title":"t","min":2,"max":8,"allowRepeats":false,
+              "log":[{"value":7,"at":42}],"createdAt":0,"lastUsedAt":42}]
+        """.trimIndent()
+
+        val decoded = SessionCodec.decode(mixed)
+
+        assertEquals(listOf(1, 2), decoded[0].generated)
+        assertEquals(1, decoded[0].min)
+        assertEquals(2, decoded[1].min)
+        assertEquals(8, decoded[1].max)
+        assertEquals(42L, decoded[1].log.single().at)
+    }
+
+    @Test
+    fun `decode - payload without range fields falls back to minimal numbers`() {
+        // Обрезанная запись: без корневых min/max декодер не должен падать.
+        val broken = """
+            {"id":"x","title":"t","log":[],"createdAt":0,"lastUsedAt":0}
+        """.trimIndent()
+
+        val decoded = SessionCodec.decodeOne(broken)!!
+
+        assertEquals(SessionPayload.Numbers(min = 1, max = 1, allowRepeats = true), decoded.payload)
+    }
+
+    @Test
+    fun `round trip - payload survives encode and decode`() {
+        val session = Session(
+            id = "p1",
+            title = "-5..5",
+            payload = SessionPayload.Numbers(min = -5, max = 5, allowRepeats = true),
+            log = listOf(GeneratedEntry(3, 7L)),
+            createdAt = 1L,
+            lastUsedAt = 7L,
+            seed = 9L,
+        )
+
+        assertEquals(session, SessionCodec.decodeOne(SessionCodec.encodeOne(session)))
     }
 
     @Test

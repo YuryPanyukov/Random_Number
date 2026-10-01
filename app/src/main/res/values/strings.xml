@@ -64,7 +64,6 @@
     <string name="import_sessions">Импорт сессий</string>
     <string name="import_done">Импортировано сессий: %1$d</string>
     <string name="import_failed">Не удалось прочитать файл с сессиями</string>
-    <string name="export_sessions_done">Сохранено сессий: %1$d</string>
     <string name="export_format_csv">CSV (с временем)</string>
     <string name="export_format_txt">TXT (список чисел)</string>
     <string name="export_format_json">JSON (сессия целиком)</string>

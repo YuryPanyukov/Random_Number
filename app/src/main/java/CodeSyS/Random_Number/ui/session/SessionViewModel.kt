@@ -3,7 +3,6 @@ package CodeSyS.Random_Number.ui.session
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.Session
 import CodeSyS.Random_Number.data.SessionRepository
-import CodeSyS.Random_Number.data.SessionTransfer
 import CodeSyS.Random_Number.domain.BatchGenerationResult
 import CodeSyS.Random_Number.domain.NumberGenerator
 import CodeSyS.Random_Number.domain.RandomSourceMode
@@ -35,9 +34,6 @@ sealed interface SessionEvent {
         val fileName: String,
         val mimeType: String,
     ) : SessionEvent
-
-    /** Экспорт истории завершён: [count] сессий записано. */
-    data class SessionsExported(val count: Int) : SessionEvent
 }
 
 /** Состояние экрана генерации. */
@@ -240,36 +236,6 @@ class SessionViewModel(
             ),
         )
         this
-    }
-
-    /** Экспортирует все сессии в файл переноса (поделиться/сохранить). */
-    fun exportAllSessions() = enqueue {
-        val all = repository.observeSessionsOnce()
-        _events.tryEmit(
-            SessionEvent.ExportReady(
-                text = SessionTransfer.export(all, exportedAt = clock()),
-                fileName = "random-number-sessions.json",
-                mimeType = "application/json",
-            ),
-        )
-        this
-    }
-
-    /**
-     * Импортирует сессии из файла переноса.
-     *
-     * @return число импортированных сессий; `0`, если файл не разбирается.
-     */
-    suspend fun importSessions(raw: String): Int {
-        val sessions = SessionTransfer.read(raw) ?: return 0
-        var imported = 0
-        sessions.forEach { session ->
-            // Новый id: иначе импорт перезаписал бы существующую сессию.
-            val copy = session.copy(id = java.util.UUID.randomUUID().toString())
-            if (repository.create(copy)) imported++
-        }
-        _events.tryEmit(SessionEvent.SessionsExported(imported))
-        return imported
     }
 
     /** Закрывает диалог «Все числа выбраны» (продолжить как есть). */

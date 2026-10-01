@@ -22,12 +22,17 @@ data class GeneratedEntry(
 /**
  * Сохранённая сессия генерации случайных чисел.
  *
+ * Параметры режима генерации вынесены в [payload] ([SessionPayload]) —
+ * это точка расширения для новых режимов (кубики, монетка, списки):
+ * журнал, время и seed общие, меняется только «что и как генерируется».
+ *
+ * Для режима чисел есть плоский конструктор и свойства-делегаты
+ * (`min`/`max`/`allowRepeats`), поэтому существующий код и данные
+ * не изменились.
+ *
  * @param id уникальный идентификатор сессии.
  * @param title человекочитаемое имя (например, «1..100, без повторов»).
- * @param min нижняя граница диапазона (включительно).
- * @param max верхняя граница диапазона (включительно).
- * @param allowRepeats `true` — повторы разрешены; `false` — уже
- * сгенерированные числа не должны появляться снова.
+ * @param payload параметры режима генерации.
  * @param log журнал выдачи с таймстампами.
  * @param createdAt время создания сессии (epoch millis).
  * @param lastUsedAt время последнего использования (epoch millis),
@@ -39,16 +44,67 @@ data class GeneratedEntry(
 data class Session(
     val id: String,
     val title: String,
-    val min: Int,
-    val max: Int,
-    val allowRepeats: Boolean,
+    val payload: SessionPayload,
     val log: List<GeneratedEntry> = emptyList(),
     val createdAt: Long = 0L,
     val lastUsedAt: Long = createdAt,
     val seed: Long? = null,
 ) {
+    /**
+     * Плоский конструктор для режима чисел.
+     *
+     * Оставлен, чтобы существующий код (в том числе тесты) не зависел
+     * от структуры payload; новые режимы конструируются payload-ом напрямую.
+     */
+    constructor(
+        id: String,
+        title: String,
+        min: Int,
+        max: Int,
+        allowRepeats: Boolean,
+        log: List<GeneratedEntry> = emptyList(),
+        createdAt: Long = 0L,
+        lastUsedAt: Long = createdAt,
+        seed: Long? = null,
+    ) : this(
+        id = id,
+        title = title,
+        payload = SessionPayload.Numbers(min = min, max = max, allowRepeats = allowRepeats),
+        log = log,
+        createdAt = createdAt,
+        lastUsedAt = lastUsedAt,
+        seed = seed,
+    )
+
+    /**
+     * Параметры режима чисел.
+     *
+     * Пока режим один, payload всегда [SessionPayload.Numbers], поэтому
+     * здесь `Numbers` без обёртки: свойства `min`/`max`/`allowRepeats`
+     * и весь существующий код остались плоскими. Когда появятся другие
+     * режимы, каждый из них даст свою реализацию этих параметров
+     * (sealed-полиморфизм вместо `when` по флагу), а обращения к числовым
+     * полям останутся только в коде режима чисел.
+     */
+    private val numbers: SessionPayload.Numbers
+        get() = payload as SessionPayload.Numbers
+
+    // Делегирование параметров режима чисел: код и данные режима «числа»
+    // остались плоскими (session.min, session.allowRepeats, …).
+
+    /** Нижняя граница диапазона (режим чисел). */
+    val min: Int get() = numbers.min
+
+    /** Верхняя граница диапазона (режим чисел). */
+    val max: Int get() = numbers.max
+
+    /** `true` — повторы разрешены (режим чисел). */
+    val allowRepeats: Boolean get() = numbers.allowRepeats
+
     init {
-        require(min <= max) { "Некорректный диапазон: min=$min > max=$max" }
+        // Параметры режима читаются напрямую; при добавлении нового режима
+        // это станет полиморфным доступом через SessionPayload.
+        payload as SessionPayload.Numbers
     }
 
     /** История выданных чисел (в порядке генерации). */
@@ -59,9 +115,7 @@ data class Session(
 
     /** Размер диапазона чисел (включительно). */
     val rangeSize: Int by lazy {
-        (max.toLong() - min.toLong() + 1L)
-            .coerceIn(1L, Int.MAX_VALUE.toLong())
-            .toInt()
+        numbers.size.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
     }
 
     /**
@@ -163,7 +217,7 @@ data class Session(
     companion object {
 
         /**
-         * Создаёт новую сессию.
+         * Создаёт новую сессию режима чисел.
          *
          * @param seed значение seed для воспроизводимой генерации.
          */
@@ -180,6 +234,27 @@ data class Session(
             min = min,
             max = max,
             allowRepeats = allowRepeats,
+            log = emptyList(),
+            createdAt = now,
+            lastUsedAt = now,
+            seed = seed,
+        )
+
+        /**
+         * Создаёт новую сессию в заданном режиме [payload].
+         *
+         * Название по умолчанию — параметры режима; режимам-наследникам
+         * стоит передавать осмысленное [title] явно.
+         */
+        fun new(
+            payload: SessionPayload,
+            now: Long,
+            title: String = payload.toString(),
+            seed: Long? = null,
+        ): Session = Session(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            payload = payload,
             log = emptyList(),
             createdAt = now,
             lastUsedAt = now,
