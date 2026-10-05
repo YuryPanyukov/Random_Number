@@ -98,8 +98,9 @@ app/src/main/java/CodeSyS/Random_Number/
 ├── platform/
 │   └── FeedbackProvider.kt    # вибрация/звук при генерации
 └── ui/
-    ├── AppNav.kt              # home → new_session → session/{id}, settings
+    ├── AppNav.kt              # home → mode_picker → new_session/{mode} → session/{id}
     ├── HomeScreen.kt          # список сессий, импорт/экспорт всех сессий
+    ├── ModePickerScreen.kt    # выбор режима генерации перед формой
     ├── NewSessionScreen.kt    # пресеты, диапазон, «без повторений»
     ├── SessionScreen.kt       # генерация, история, статистика, seed, экспорт
     ├── SessionStatsCard.kt    # карточка статистики

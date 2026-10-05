@@ -2,6 +2,7 @@ package CodeSyS.Random_Number.ui
 
 import CodeSyS.Random_Number.App
 import CodeSyS.Random_Number.ui.home.HomeViewModel
+import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import CodeSyS.Random_Number.ui.session.SessionViewModel
 import CodeSyS.Random_Number.ui.settings.SettingsViewModel
@@ -23,8 +24,19 @@ val HomeViewModelFactory = viewModelFactory {
     initializer { HomeViewModel(appContainer().container.sessionRepository) }
 }
 
-val NewSessionViewModelFactory = viewModelFactory {
-    initializer { NewSessionViewModel(appContainer().container.sessionRepository) }
+/**
+ * Фабрика формы новой сессии с предвыбранным режимом (экран выбора, 2.6).
+ *
+ * Маршрут `new_session/{mode}` создаёт VM с этим режимом, поэтому форма
+ * открывается сразу с нужными полями.
+ */
+fun newSessionViewModelFactory(mode: NewSessionMode) = viewModelFactory {
+    initializer {
+        NewSessionViewModel(
+            repository = appContainer().container.sessionRepository,
+            initialMode = mode,
+        )
+    }
 }
 
 val SessionViewModelFactory = viewModelFactory {
@@ -34,6 +46,7 @@ val SessionViewModelFactory = viewModelFactory {
             repository = container.sessionRepository,
             generator = container.numberGenerator,
             feedback = container.feedbackProvider,
+            onHistoryChanged = container::refreshLatestSessionWidget,
         )
     }
 }

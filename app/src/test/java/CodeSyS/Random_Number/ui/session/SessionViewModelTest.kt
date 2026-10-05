@@ -4,7 +4,12 @@ import CodeSyS.Random_Number.data.GeneratedEntry
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.InMemorySessionRepository
 import CodeSyS.Random_Number.data.Session
+import CodeSyS.Random_Number.data.SessionPayload
+import CodeSyS.Random_Number.domain.CoinFlipper
+import CodeSyS.Random_Number.domain.DiceRoller
+import CodeSyS.Random_Number.domain.ItemGenerator
 import CodeSyS.Random_Number.domain.NumberGenerator
+import CodeSyS.Random_Number.domain.Shuffler
 import CodeSyS.Random_Number.platform.FeedbackProvider
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +56,10 @@ class SessionViewModelTest {
     ) = SessionViewModel(
         repository = repository,
         generator = NumberGenerator(Random(seed)),
+        itemGenerator = ItemGenerator(Random(seed)),
+        diceRoller = DiceRoller(Random(seed)),
+        coinFlipper = CoinFlipper(Random(seed)),
+        shuffler = Shuffler(Random(seed)),
         clock = { now },
         feedback = feedback,
     )
@@ -68,6 +77,68 @@ class SessionViewModelTest {
         min = min,
         max = max,
         allowRepeats = allowRepeats,
+        log = generated.map { GeneratedEntry(it, 0L) },
+        createdAt = 0L,
+        lastUsedAt = 0L,
+        seed = seed,
+    )
+
+    private fun diceSession(
+        id: String = "s1",
+        count: Int = 2,
+        sides: Int = 6,
+        generated: List<Int> = emptyList(),
+        seed: Long? = null,
+    ) = Session(
+        id = id,
+        title = "${count}d$sides",
+        payload = SessionPayload.Dice(count = count, sides = sides),
+        log = generated.map { GeneratedEntry(it, 0L) },
+        createdAt = 0L,
+        lastUsedAt = 0L,
+        seed = seed,
+    )
+
+    private fun coinSession(
+        id: String = "s1",
+        generated: List<Int> = emptyList(),
+        seed: Long? = null,
+    ) = Session(
+        id = id,
+        title = "Монета",
+        payload = SessionPayload.Coin,
+        log = generated.map { GeneratedEntry(it, 0L) },
+        createdAt = 0L,
+        lastUsedAt = 0L,
+        seed = seed,
+    )
+
+    private fun itemsSession(
+        id: String = "s1",
+        allowRepeats: Boolean = false,
+        generated: List<Int> = emptyList(),
+        seed: Long? = null,
+    ) = Session(
+        id = id,
+        title = "Список (3)",
+        payload = SessionPayload.Items(
+            items = listOf("Аня", "Борис", "Вера"),
+            allowRepeats = allowRepeats,
+        ),
+        log = generated.map { GeneratedEntry(it, 0L) },
+        createdAt = 0L,
+        lastUsedAt = 0L,
+        seed = seed,
+    )
+
+    private fun shuffleSession(
+        id: String = "s1",
+        generated: List<Int> = emptyList(),
+        seed: Long? = null,
+    ) = Session(
+        id = id,
+        title = "Перемешивание (3)",
+        payload = SessionPayload.Shuffle(items = listOf("Аня", "Борис", "Вера")),
         log = generated.map { GeneratedEntry(it, 0L) },
         createdAt = 0L,
         lastUsedAt = 0L,
@@ -701,5 +772,267 @@ class SessionViewModelTest {
         assertTrue(event.text.startsWith("value;at"))
         assertTrue(event.fileName.endsWith(".csv"))
         assertEquals("text/csv", event.mimeType)
+    }
+
+    // --- Режим «элемент из списка» (2.1) ---
+
+    @Test
+    fun `generate items - picks an element, stores its index and saves`() = runTest(dispatcher) {
+        repository.create(itemsSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        val updated = vm.uiState.value.session!!
+        assertEquals(1, updated.generated.size)
+        // Журнал хранит индекс, но пользователю показывается элемент.
+        assertTrue(updated.generated.single() in 0..2)
+        assertEquals(updated.generatedDisplay.single(), vm.uiState.value.lastDisplay)
+        assertEquals(updated, repository.getSession("s1"))
+    }
+
+    @Test
+    fun `generate items without repeats - exhausts after all items`() = runTest(dispatcher) {
+        repository.create(itemsSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        repeat(3) {
+            vm.generate()
+            advanceUntilIdle()
+        }
+        val session = vm.uiState.value.session!!
+        assertEquals(3, session.generated.size)
+        assertEquals(setOf(0, 1, 2), session.generated.toSet())
+        assertTrue(vm.uiState.value.showExhaustedDialog)
+
+        // Дальнейшие попытки ничего не добавляют.
+        vm.generate()
+        advanceUntilIdle()
+        assertEquals(3, vm.uiState.value.session!!.generated.size)
+    }
+
+    @Test
+    fun `generate items - batch of two picks two distinct items`() = runTest(dispatcher) {
+        repository.create(itemsSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.setBatchSize(2)
+        vm.generate()
+        advanceUntilIdle()
+
+        val updated = vm.uiState.value.session!!
+        assertEquals(2, updated.generated.size)
+        assertEquals(2, updated.generated.toSet().size)
+    }
+
+    @Test
+    fun `generate items - stats stay empty`() = runTest(dispatcher) {
+        repository.create(itemsSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        assertEquals(0, vm.uiState.value.stats.count)
+    }
+
+    // --- Режим «кубики» (2.2) ---
+
+    @Test
+    fun `generate dice - appends one entry per die and shows the sum`() = runTest(dispatcher) {
+        repository.create(diceSession(count = 3, sides = 6))
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        val updated = vm.uiState.value.session!!
+        assertEquals(3, updated.generated.size)
+        assertTrue(updated.generated.all { it in 1..6 })
+        // Крупное значение — сумма броска, а не отдельный кубик.
+        assertEquals(updated.generated.sum().toString(), vm.uiState.value.lastDisplay)
+        assertEquals(updated, repository.getSession("s1"))
+    }
+
+    @Test
+    fun `generate dice - repeated rolls are allowed and never exhaust`() = runTest(dispatcher) {
+        repository.create(diceSession(count = 1, sides = 2))
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        repeat(10) {
+            vm.generate()
+            advanceUntilIdle()
+        }
+
+        assertEquals(10, vm.uiState.value.session!!.generated.size)
+        assertFalse(vm.uiState.value.showExhaustedDialog)
+    }
+
+    @Test
+    fun `generate dice - same seed reproduces the same rolls`() = runTest(dispatcher) {
+        repository.create(diceSession(id = "a", count = 5, sides = 20, seed = 777L))
+        repository.create(diceSession(id = "b", count = 5, sides = 20, seed = 777L))
+
+        val vmA = viewModel().also { it.loadSession("a") }
+        advanceUntilIdle()
+        vmA.generate()
+        advanceUntilIdle()
+
+        val vmB = viewModel().also { it.loadSession("b") }
+        advanceUntilIdle()
+        vmB.generate()
+        advanceUntilIdle()
+
+        assertEquals(vmA.uiState.value.session!!.generated, vmB.uiState.value.session!!.generated)
+    }
+
+    // --- Режим «монета» (2.3) ---
+
+    @Test
+    fun `generate coin - appends one side and shows it`() = runTest(dispatcher) {
+        repository.create(coinSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        val updated = vm.uiState.value.session!!
+        assertEquals(1, updated.generated.size)
+        assertTrue(updated.generated.single() in 0..1)
+        assertTrue(vm.uiState.value.lastDisplay in listOf("Орёл", "Решка"))
+        assertEquals(1, updated.coinHeadsCount + updated.coinTailsCount)
+        assertEquals(updated, repository.getSession("s1"))
+    }
+
+    @Test
+    fun `generate coin - batch flips several coins`() = runTest(dispatcher) {
+        repository.create(coinSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.setBatchSize(3)
+        vm.generate()
+        advanceUntilIdle()
+
+        assertEquals(3, vm.uiState.value.session!!.generated.size)
+    }
+
+    @Test
+    fun `generate coin - same seed reproduces the same flips`() = runTest(dispatcher) {
+        repository.create(coinSession(id = "a", seed = 777L))
+        repository.create(coinSession(id = "b", seed = 777L))
+
+        val vmA = viewModel().also { it.loadSession("a") }
+        advanceUntilIdle()
+        repeat(5) {
+            vmA.generate()
+            advanceUntilIdle()
+        }
+
+        val vmB = viewModel().also { it.loadSession("b") }
+        advanceUntilIdle()
+        repeat(5) {
+            vmB.generate()
+            advanceUntilIdle()
+        }
+
+        assertEquals(vmA.uiState.value.session!!.generated, vmB.uiState.value.session!!.generated)
+    }
+
+    // --- Режим «перемешивание» (2.4) ---
+
+    @Test
+    fun `generate shuffle - appends a full permutation of indices and saves`() = runTest(dispatcher) {
+        repository.create(shuffleSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        val updated = vm.uiState.value.session!!
+        assertEquals(3, updated.generated.size)
+        assertEquals(setOf(0, 1, 2), updated.generated.toSet())
+        assertEquals(updated.lastShuffle!!.joinToString(" → "), vm.uiState.value.lastDisplay)
+        assertEquals(updated, repository.getSession("s1"))
+    }
+
+    @Test
+    fun `generate shuffle - batch size does not multiply the permutation`() = runTest(dispatcher) {
+        repository.create(shuffleSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.setBatchSize(5)
+        vm.generate()
+        advanceUntilIdle()
+
+        // Одно нажатие — одна перестановка независимо от размера батча.
+        assertEquals(3, vm.uiState.value.session!!.generated.size)
+    }
+
+    @Test
+    fun `generate shuffle - repeated shuffles are allowed and never exhaust`() = runTest(dispatcher) {
+        repository.create(shuffleSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        repeat(5) {
+            vm.generate()
+            advanceUntilIdle()
+        }
+
+        assertEquals(15, vm.uiState.value.session!!.generated.size)
+        assertFalse(vm.uiState.value.showExhaustedDialog)
+    }
+
+    @Test
+    fun `generate shuffle - same seed reproduces the same order`() = runTest(dispatcher) {
+        repository.create(shuffleSession(id = "a", seed = 777L))
+        repository.create(shuffleSession(id = "b", seed = 777L))
+
+        val vmA = viewModel().also { it.loadSession("a") }
+        advanceUntilIdle()
+        vmA.generate()
+        advanceUntilIdle()
+
+        val vmB = viewModel().also { it.loadSession("b") }
+        advanceUntilIdle()
+        vmB.generate()
+        advanceUntilIdle()
+
+        assertEquals(vmA.uiState.value.session!!.generated, vmB.uiState.value.session!!.generated)
+    }
+
+    @Test
+    fun `generate shuffle - stats stay empty`() = runTest(dispatcher) {
+        repository.create(shuffleSession())
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+
+        vm.generate()
+        advanceUntilIdle()
+
+        assertEquals(0, vm.uiState.value.stats.count)
     }
 }

@@ -1,6 +1,7 @@
 package CodeSyS.Random_Number.ui.newsession
 
 import CodeSyS.Random_Number.data.Session
+import CodeSyS.Random_Number.data.SessionPayload
 import CodeSyS.Random_Number.data.SessionRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Режим создаваемой сессии. */
+enum class NewSessionMode {
+    /** Генерация чисел в заданном диапазоне. */
+    NUMBERS,
+
+    /** Выбор случайного элемента из введённого списка (2.1). */
+    ITEMS,
+
+    /** Бросок кубиков (2.2). */
+    DICE,
+
+    /** Бросок монеты «орёл/решка» (2.3). */
+    COIN,
+
+    /** Перемешивание списка (2.4). */
+    SHUFFLE,
+}
+
 /**
  * Состояние формы новой сессии.
  *
@@ -20,6 +39,7 @@ import kotlinx.coroutines.launch
  * и ошибки валидации — производные от него.
  */
 data class NewSessionUiState(
+    val mode: NewSessionMode = NewSessionMode.NUMBERS,
     val minText: String = DEFAULT_MIN,
     val maxText: String = DEFAULT_MAX,
     /** Значение переключателя «Без повторений»: `true` — повторов не будет. */
@@ -27,6 +47,12 @@ data class NewSessionUiState(
     /** Поля уже трогали пользователем — до этого ошибки не показываем. */
     val minTouched: Boolean = false,
     val maxTouched: Boolean = false,
+    /** Элементы списка режима [NewSessionMode.ITEMS], по одному в строке. */
+    val itemsText: String = "",
+    /** Число кубиков в броске (режим [NewSessionMode.DICE]). */
+    val diceCountText: String = DEFAULT_DICE_COUNT,
+    /** Число граней кубика (режим [NewSessionMode.DICE]). */
+    val diceSidesText: String = DEFAULT_DICE_SIDES,
 ) {
     /** Минимальное значение диапазона или `null`, если введено не число. */
     val min: Int? get() = minText.toIntOrNull()
@@ -43,8 +69,32 @@ data class NewSessionUiState(
     /** `true`, если «до» введено некорректно (и поле трогали). */
     val maxError: Boolean get() = maxTouched && max == null
 
+    /**
+     * Элементы списка: непустые строки без учёта порядка, дубликаты
+     * удалены (с сохранением порядка первого появления).
+     */
+    val parsedItems: List<String>
+        get() = itemsText.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .toList()
+
+    /** Число кубиков или `null`, если введено не число. */
+    val diceCount: Int? get() = diceCountText.toIntOrNull()
+
+    /** Число граней или `null`, если введено не число. */
+    val diceSides: Int? get() = diceSidesText.toIntOrNull()
+
     /** Можно ли создать сессию с текущим вводом. */
-    val canCreate: Boolean get() = min != null && max != null && !rangeError
+    val canCreate: Boolean
+        get() = when (mode) {
+            NewSessionMode.NUMBERS -> min != null && max != null && !rangeError
+            NewSessionMode.ITEMS -> parsedItems.isNotEmpty()
+            NewSessionMode.DICE -> (diceCount ?: 0) >= 1 && (diceSides ?: 0) >= 2
+            NewSessionMode.COIN -> true
+            NewSessionMode.SHUFFLE -> parsedItems.size >= 2
+        }
 
     /** Размер диапазона `min..max` или `0`, если ввод некорректен. */
     val rangeSize: Long
@@ -52,6 +102,7 @@ data class NewSessionUiState(
 
     /** Применяет параметры пресета: диапазон и режим повторов. */
     fun withPreset(min: Int, max: Int, allowRepeats: Boolean): NewSessionUiState = copy(
+        mode = NewSessionMode.NUMBERS,
         minText = min.toString(),
         maxText = max.toString(),
         withoutRepeats = !allowRepeats,
@@ -62,6 +113,8 @@ data class NewSessionUiState(
     companion object {
         const val DEFAULT_MIN = "1"
         const val DEFAULT_MAX = "100"
+        const val DEFAULT_DICE_COUNT = "2"
+        const val DEFAULT_DICE_SIDES = "6"
     }
 }
 
@@ -73,13 +126,16 @@ data class NewSessionUiState(
  * (или смене конфигурации) введённые значения сохраняются.
  *
  * @param clock источник времени — для детерминированных тестов.
+ * @param initialMode режим, предвыбранный на экране выбора (2.6): форма
+ * открывается сразу с нужными полями, без повторного переключения.
  */
 class NewSessionViewModel(
     private val repository: SessionRepository,
     private val clock: () -> Long = System::currentTimeMillis,
+    initialMode: NewSessionMode = NewSessionMode.NUMBERS,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(NewSessionUiState())
+    private val _uiState = MutableStateFlow(NewSessionUiState(mode = initialMode))
     val uiState: StateFlow<NewSessionUiState> = _uiState.asStateFlow()
 
     private val _createdSessionId = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -99,6 +155,26 @@ class NewSessionViewModel(
         _uiState.update { it.copy(withoutRepeats = value) }
     }
 
+    /** Переключает режим формы: числа диапазона или список элементов. */
+    fun setMode(mode: NewSessionMode) {
+        _uiState.update { it.copy(mode = mode) }
+    }
+
+    /** Обновляет текст списка элементов (режим [NewSessionMode.ITEMS]). */
+    fun setItemsText(value: String) {
+        _uiState.update { it.copy(itemsText = value) }
+    }
+
+    /** Обновляет число кубиков (режим [NewSessionMode.DICE]). */
+    fun setDiceCount(value: String) {
+        _uiState.update { it.copy(diceCountText = value) }
+    }
+
+    /** Обновляет число граней кубика (режим [NewSessionMode.DICE]). */
+    fun setDiceSides(value: String) {
+        _uiState.update { it.copy(diceSidesText = value) }
+    }
+
     /** Применяет пресет диапазона одним тапом. */
     fun applyPreset(min: Int, max: Int, allowRepeats: Boolean) {
         _uiState.update { it.withPreset(min, max, allowRepeats) }
@@ -111,21 +187,61 @@ class NewSessionViewModel(
      */
     fun createSession(): Boolean {
         val state = _uiState.value
-        val min = state.min
-        val max = state.max
-        if (min == null || max == null || state.rangeError) return false
+        if (!state.canCreate) return false
+
         viewModelScope.launch {
-            val session = Session.new(
-                min = min,
-                max = max,
-                allowRepeats = !state.withoutRepeats,
-                now = clock(),
-            )
+            val session = when (state.mode) {
+                NewSessionMode.NUMBERS -> Session.new(
+                    min = state.min!!,
+                    max = state.max!!,
+                    allowRepeats = !state.withoutRepeats,
+                    now = clock(),
+                )
+
+                NewSessionMode.ITEMS -> Session.new(
+                    payload = SessionPayload.Items(
+                        items = state.parsedItems,
+                        allowRepeats = !state.withoutRepeats,
+                    ),
+                    now = clock(),
+                    title = itemsTitle(state.parsedItems.size, state.withoutRepeats),
+                )
+
+                NewSessionMode.DICE -> {
+                    val payload = SessionPayload.Dice(
+                        count = state.diceCount!!,
+                        sides = state.diceSides!!,
+                    )
+                    Session.new(payload = payload, now = clock(), title = payload.label)
+                }
+
+                NewSessionMode.COIN -> Session.new(
+                    payload = SessionPayload.Coin,
+                    now = clock(),
+                    title = coinTitle(),
+                )
+
+                NewSessionMode.SHUFFLE -> Session.new(
+                    payload = SessionPayload.Shuffle(items = state.parsedItems),
+                    now = clock(),
+                    title = shuffleTitle(state.parsedItems.size),
+                )
+            }
             if (!repository.create(session)) return@launch
             _createdSessionId.tryEmit(session.id)
         }
         return true
     }
+
+    /** Заголовок сессии-списка: количество элементов и режим повторов. */
+    private fun itemsTitle(count: Int, withoutRepeats: Boolean): String =
+        "Список ($count)" + if (withoutRepeats) ", без повторов" else ""
+
+    /** Заголовок сессии-монеты. */
+    private fun coinTitle(): String = "Монета"
+
+    /** Заголовок сессии-перемешивания: количество элементов. */
+    private fun shuffleTitle(count: Int): String = "Перемешивание ($count)"
 
     /**
      * Создаёт сессию с явными параметрами (используется в тестах
@@ -134,7 +250,12 @@ class NewSessionViewModel(
     fun createSession(min: Int, max: Int, allowRepeats: Boolean): Boolean {
         require(min <= max) { "Некорректный диапазон: min=$min > max=$max" }
         _uiState.update {
-            it.copy(minText = min.toString(), maxText = max.toString(), withoutRepeats = !allowRepeats)
+            it.copy(
+                mode = NewSessionMode.NUMBERS,
+                minText = min.toString(),
+                maxText = max.toString(),
+                withoutRepeats = !allowRepeats,
+            )
         }
         return createSession()
     }

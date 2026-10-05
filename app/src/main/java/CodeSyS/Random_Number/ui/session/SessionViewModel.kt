@@ -2,11 +2,17 @@ package CodeSyS.Random_Number.ui.session
 
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.Session
+import CodeSyS.Random_Number.data.SessionPayload
 import CodeSyS.Random_Number.data.SessionRepository
 import CodeSyS.Random_Number.domain.BatchGenerationResult
+import CodeSyS.Random_Number.domain.CoinFlipper
+import CodeSyS.Random_Number.domain.DiceRoller
+import CodeSyS.Random_Number.domain.ItemGenerationResult
+import CodeSyS.Random_Number.domain.ItemGenerator
 import CodeSyS.Random_Number.domain.NumberGenerator
 import CodeSyS.Random_Number.domain.RandomSourceMode
 import CodeSyS.Random_Number.domain.SessionStats
+import CodeSyS.Random_Number.domain.Shuffler
 import CodeSyS.Random_Number.domain.computeSessionStats
 import CodeSyS.Random_Number.domain.createRandom
 import CodeSyS.Random_Number.platform.FeedbackProvider
@@ -42,6 +48,8 @@ data class SessionUiState(
     val session: Session? = null,
     /** Последнее сгенерированное число (для крупного отображения). */
     val lastNumber: Int? = null,
+    /** Последнее значение для показа: число либо элемент списка. */
+    val lastDisplay: String? = null,
     /** Показывать диалог «Все числа выбраны». */
     val showExhaustedDialog: Boolean = false,
     /** Сколько чисел генерировать за одно нажатие (1/2/3/5/10). */
@@ -74,9 +82,15 @@ data class SessionUiState(
 class SessionViewModel(
     private val repository: SessionRepository,
     private val generator: NumberGenerator,
+    private val itemGenerator: ItemGenerator = ItemGenerator(),
+    private val diceRoller: DiceRoller = DiceRoller(),
+    private val coinFlipper: CoinFlipper = CoinFlipper(),
+    private val shuffler: Shuffler = Shuffler(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val feedback: FeedbackProvider? = null,
     private val randomMode: RandomSourceMode = RandomSourceMode.DEFAULT,
+    /** Вызывается после каждого изменения истории — обновляет виджет (5.4). */
+    private val onHistoryChanged: () -> Unit = {},
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SessionUiState())
@@ -106,7 +120,8 @@ class SessionViewModel(
             SessionUiState(
                 session = session,
                 lastNumber = session.lastNumber,
-                stats = computeSessionStats(session.generated),
+                lastDisplay = session.lastDisplay,
+                stats = statsFor(session),
                 isLoading = false,
             )
         }
@@ -123,6 +138,11 @@ class SessionViewModel(
      */
     fun generate() = enqueue {
         val session = session ?: return@enqueue this
+        if (session.isItemsMode) return@enqueue generateItem(session)
+        if (session.isDiceMode) return@enqueue generateDice(session)
+        if (session.isCoinMode) return@enqueue generateCoin(session)
+        if (session.isShuffleMode) return@enqueue generateShuffle(session)
+
         val source = generatorFor(session)
         val result = source.next(
             count = batchSize,
@@ -140,10 +160,11 @@ class SessionViewModel(
                 copy(
                     session = updated,
                     lastNumber = result.numbers.last(),
+                    lastDisplay = updated.lastDisplay,
                     // Сразу сообщаем, если этим батчем диапазон исчерпан.
                     showExhaustedDialog = updated.isExhausted,
                     lastBatchPartial = result.partial,
-                    stats = computeSessionStats(updated.generated),
+                    stats = statsFor(updated),
                 )
             }
 
@@ -153,17 +174,111 @@ class SessionViewModel(
         }
     }
 
+    /**
+     * Генерирует элемент(ы) списка (режим [SessionPayload.Items]).
+     *
+     * Журнал хранит индексы выпавших элементов — так прогресс и исчерпание
+     * работают теми же полями, что и у режима чисел (см. [Session]).
+     */
+    private suspend fun SessionUiState.generateItem(session: Session): SessionUiState {
+        val result = itemGeneratorFor(session).next(
+            count = batchSize,
+            items = session.items,
+            allowRepeats = session.allowRepeats,
+            generated = session.generated,
+        )
+        return when (result) {
+            is ItemGenerationResult.Success -> {
+                val updated = session.withGenerated(result.indices, at = clock())
+                if (!persist(updated)) {
+                    this
+                } else {
+                    feedback?.onGenerated(result.items.size)
+                    copy(
+                        session = updated,
+                        lastNumber = result.indices.last(),
+                        lastDisplay = updated.lastDisplay,
+                        showExhaustedDialog = updated.isExhausted,
+                        lastBatchPartial = result.partial,
+                    )
+                }
+            }
+
+            ItemGenerationResult.Exhausted -> copy(showExhaustedDialog = true)
+        }
+    }
+
+    /**
+     * Бросает кубики (режим [SessionPayload.Dice]).
+     *
+     * Каждое значение кубика — отдельная запись журнала; прогресс и
+     * исчерпание не применимы (кубики кидаются повторно).
+     */
+    private suspend fun SessionUiState.generateDice(session: Session): SessionUiState {
+        val payload = session.payload as SessionPayload.Dice
+        val roll = diceRollerFor(session).roll(count = payload.count, sides = payload.sides)
+        val updated = session.withGenerated(roll.dice, at = clock())
+        if (!persist(updated)) return this
+        feedback?.onGenerated(roll.dice.size)
+        return copy(
+            session = updated,
+            lastNumber = roll.sum,
+            lastDisplay = updated.lastDisplay,
+            stats = statsFor(updated),
+        )
+    }
+
+    /**
+     * Бросает монету (режим [SessionPayload.Coin]).
+     *
+     * Размер батча работает как обычно: можно бросить сразу несколько
+     * монет. В журнал пишутся стороны как `0`/`1`.
+     */
+    private suspend fun SessionUiState.generateCoin(session: Session): SessionUiState {
+        val values = coinFlipperFor(session).flip(batchSize).map { it.ordinal }
+        val updated = session.withGenerated(values, at = clock())
+        if (!persist(updated)) return this
+        feedback?.onGenerated(values.size)
+        return copy(
+            session = updated,
+            lastNumber = values.last(),
+            lastDisplay = updated.lastDisplay,
+            stats = statsFor(updated),
+        )
+    }
+
+    /**
+     * Перемешивает список (режим [SessionPayload.Shuffle], задача 2.4).
+     *
+     * Одно нажатие даёт новую перестановку всех элементов; в журнал
+     * пишутся индексы в порядке перемешивания, поэтому история, экспорт
+     * и вывод работают теми же механизмами, что у списка.
+     */
+    private suspend fun SessionUiState.generateShuffle(session: Session): SessionUiState {
+        val payload = session.payload as SessionPayload.Shuffle
+        val indices = shufflerFor(session).shuffle(payload.items.indices.toList())
+        val updated = session.withGenerated(indices, at = clock())
+        if (!persist(updated)) return this
+        feedback?.onGenerated(1)
+        return copy(
+            session = updated,
+            lastNumber = indices.last(),
+            lastDisplay = updated.lastDisplay,
+        )
+    }
+
     /** Убирает последнее число истории («отменить последнее»). */
     fun undoLast() = enqueue {
         val session = session ?: return@enqueue this
         if (session.log.isEmpty()) return@enqueue this
         val updated = session.withoutLastGenerated(at = clock())
         if (!persist(updated)) return@enqueue this
-        // Крупное число — последнее в истории (или null, если пусто).
+        // Крупное значение — последнее в истории (или null, если пусто).
         copy(
             session = updated,
             lastNumber = updated.lastNumber,
-            stats = computeSessionStats(updated.generated),
+            lastDisplay = updated.lastDisplay,
+            stats = statsFor(updated),
         )
     }
 
@@ -176,7 +291,8 @@ class SessionViewModel(
         copy(
             session = updated,
             lastNumber = updated.lastNumber,
-            stats = computeSessionStats(updated.generated),
+            lastDisplay = updated.lastDisplay,
+            stats = statsFor(updated),
         )
     }
 
@@ -189,7 +305,12 @@ class SessionViewModel(
         val updated = runCatching { session.addManual(number, at = clock()) }
             .getOrNull() ?: return@enqueue this
         if (!persist(updated)) return@enqueue this
-        copy(session = updated, lastNumber = number, stats = computeSessionStats(updated.generated))
+        copy(
+            session = updated,
+            lastNumber = number,
+            lastDisplay = updated.lastDisplay,
+            stats = statsFor(updated),
+        )
     }
 
     /** Скидывает ранее выбранные числа («продолжить, но сбросить»). */
@@ -203,8 +324,9 @@ class SessionViewModel(
             copy(
                 session = cleared,
                 lastNumber = null,
+                lastDisplay = null,
                 showExhaustedDialog = false,
-                stats = computeSessionStats(emptyList()),
+                stats = SessionStats.EMPTY,
             )
         }
     }
@@ -256,6 +378,46 @@ class SessionViewModel(
             generator
         }
 
+    /** Генератор элементов — с тем же правилом seed, что и у чисел. */
+    private fun itemGeneratorFor(session: Session): ItemGenerator =
+        if (session.seed != null) {
+            ItemGenerator(createRandom(randomMode, session.seed))
+        } else {
+            itemGenerator
+        }
+
+    /** Бросатель кубиков — с тем же правилом seed, что и у чисел. */
+    private fun diceRollerFor(session: Session): DiceRoller =
+        if (session.seed != null) {
+            DiceRoller(createRandom(randomMode, session.seed))
+        } else {
+            diceRoller
+        }
+
+    /** Бросатель монеты — с тем же правилом seed, что и у чисел. */
+    private fun coinFlipperFor(session: Session): CoinFlipper =
+        if (session.seed != null) {
+            CoinFlipper(createRandom(randomMode, session.seed))
+        } else {
+            coinFlipper
+        }
+
+    /** Перемешиватель — с тем же правилом seed, что и у чисел. */
+    private fun shufflerFor(session: Session): Shuffler =
+        if (session.seed != null) {
+            Shuffler(createRandom(randomMode, session.seed))
+        } else {
+            shuffler
+        }
+
+    /** Статистика считается только для чисел: у списка индексы не значимы. */
+    private fun statsFor(session: Session): SessionStats =
+        if (session.isItemsMode || session.isShuffleMode) {
+            SessionStats.EMPTY
+        } else {
+            computeSessionStats(session.generated)
+        }
+
     /**
      * Сохраняет [updated] в хранилище.
      *
@@ -263,9 +425,13 @@ class SessionViewModel(
      * [SessionEvent.SessionNotFound] и состояние не меняется.
      */
     private suspend fun persist(updated: Session): Boolean {
-        if (repository.update(updated)) return true
-        _events.tryEmit(SessionEvent.SessionNotFound)
-        return false
+        if (!repository.update(updated)) {
+            _events.tryEmit(SessionEvent.SessionNotFound)
+            return false
+        }
+        // Виджет показывает снимок последней сессии — обновляем его.
+        onHistoryChanged()
+        return true
     }
 
     /** Ставит операцию в очередь; её результат попадёт в [uiState]. */

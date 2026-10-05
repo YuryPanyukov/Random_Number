@@ -1,5 +1,6 @@
 package CodeSyS.Random_Number.ui
 
+import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -12,11 +13,17 @@ import androidx.navigation.navArgument
 
 private object Routes {
     const val HOME = "home"
-    const val NEW_SESSION = "new_session"
+    const val MODE_PICKER = "mode_picker"
+    const val NEW_SESSION = "new_session/{mode}"
     const val SETTINGS = "settings"
     const val SESSION = "session/{sessionId}"
+    fun newSession(mode: NewSessionMode) = "new_session/${mode.name}"
     fun session(id: String) = "session/$id"
 }
+
+/** Разбирает аргумент маршрута `new_session/{mode}` (неизвестное → числа). */
+private fun String?.toNewSessionMode(): NewSessionMode =
+    NewSessionMode.entries.firstOrNull { it.name == this } ?: NewSessionMode.NUMBERS
 
 /** Корневая навигация: главное меню → параметры новой сессии → генерация. */
 @Composable
@@ -26,9 +33,17 @@ fun AppNav() {
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
-                onNewSession = { navController.navigate(Routes.NEW_SESSION) },
+                onNewSession = { navController.navigate(Routes.MODE_PICKER) },
                 onOpenSession = { id -> navController.navigate(Routes.session(id)) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+
+        // Первый шаг создания сессии: выбор режима генерации (2.6).
+        composable(Routes.MODE_PICKER) {
+            ModePickerScreen(
+                onBack = { navController.popBackStack() },
+                onModeSelected = { mode -> navController.navigate(Routes.newSession(mode)) },
             )
         }
 
@@ -38,14 +53,20 @@ fun AppNav() {
             )
         }
 
-        composable(Routes.NEW_SESSION) {
-            val viewModel: NewSessionViewModel = viewModel(factory = NewSessionViewModelFactory)
+        composable(
+            route = Routes.NEW_SESSION,
+            arguments = listOf(navArgument("mode") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val mode = backStackEntry.arguments?.getString("mode").toNewSessionMode()
+            val viewModel: NewSessionViewModel =
+                viewModel(factory = newSessionViewModelFactory(mode))
 
-            // Сессия создана — открываем её экран и убираем форму из стека.
+            // Сессия создана — открываем её экран и убираем форму и выбор
+            // режима из стека, чтобы «назад» вёл сразу в главное меню.
             LaunchedEffect(Unit) {
                 viewModel.createdSessionId.collect { id ->
                     navController.navigate(Routes.session(id)) {
-                        popUpTo(Routes.NEW_SESSION) { inclusive = true }
+                        popUpTo(Routes.MODE_PICKER) { inclusive = true }
                     }
                 }
             }
@@ -55,6 +76,7 @@ fun AppNav() {
                 onCreated = {
                     // Переход выполняется по событию createdSessionId.
                 },
+                initialMode = mode,
             )
         }
 
@@ -72,7 +94,7 @@ fun AppNav() {
                         launchSingleTop = true
                     }
                 },
-                onNewSession = { navController.navigate(Routes.NEW_SESSION) },
+                onNewSession = { navController.navigate(Routes.MODE_PICKER) },
             )
         }
     }

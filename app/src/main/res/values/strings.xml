@@ -21,6 +21,7 @@
     <!-- Экран сессии -->
     <string name="generation">Генерация</string>
     <string name="last_number">Последнее число</string>
+    <string name="last_result">Последний результат</string>
     <string name="generate">Сгенерировать</string>
     <string name="batch_size">Сколько чисел генерировать</string>
     <string name="batch_partial_notice">Выдано меньше, чем запрошено: просили %1$d, а в диапазоне выбрано уже %2$d из %3$d</string>
@@ -74,7 +75,35 @@
     <string name="seed_invalid">Введите целое число</string>
     <string name="seed_active">Seed: %1$d</string>
 
+    <!-- Виджет и плитка -->
+    <string name="widget_label">Последняя сессия</string>
+    <string name="widget_description">Последнее значение сессии и кнопка «Сгенерировать»</string>
+    <string name="tile_label">Сгенерировать</string>
+    <string name="widget_generate">Сгенерировать</string>
+    <string name="widget_no_sessions">Нет сессий</string>
+
+    <!-- Выбор режима -->
+    <string name="mode_picker_title">Что генерировать?</string>
+    <string name="mode_numbers_hint">Случайное число в заданном диапазоне</string>
+    <string name="mode_items_hint">Случайный элемент из вашего списка</string>
+    <string name="mode_dice_hint">Бросок набора кубиков и их сумма</string>
+    <string name="mode_coin_hint">Орёл или решка</string>
+    <string name="mode_shuffle_hint">Случайный порядок элементов списка</string>
+
     <!-- Новая сессия -->
+    <string name="mode_numbers">Числа</string>
+    <string name="mode_items">Список</string>
+    <string name="mode_dice">Кубики</string>
+    <string name="mode_coin">Монета</string>
+    <string name="mode_shuffle">Перемешать</string>
+    <string name="items_label">Элементы (по одному в строке)</string>
+    <string name="items_hint">Пустые строки и дубликаты игнорируются</string>
+    <string name="shuffle_label">Элементы для перемешивания (по одному в строке)</string>
+    <string name="shuffle_hint">Нужно минимум два элемента; каждое нажатие даёт новую перестановку</string>
+    <string name="dice_count">Сколько кубиков</string>
+    <string name="dice_sides">Сколько граней</string>
+    <string name="coin_hint">Монета бросается повторно; результат — орёл или решка</string>
+    <string name="coin_stats">Орёл: %1$d · Решка: %2$d</string>
     <string name="range_from">От</string>
     <string name="range_to">До</string>
     <string name="invalid_number">Введите целое число</string>

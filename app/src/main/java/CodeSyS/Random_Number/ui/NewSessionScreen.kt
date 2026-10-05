@@ -2,6 +2,7 @@ package CodeSyS.Random_Number.ui
 
 import CodeSyS.Random_Number.R
 import CodeSyS.Random_Number.domain.RangePreset
+import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionUiState
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -54,7 +57,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun NewSessionScreen(
     onBack: () -> Unit,
     onCreated: () -> Unit,
-    viewModel: NewSessionViewModel = viewModel(factory = NewSessionViewModelFactory),
+    initialMode: NewSessionMode = NewSessionMode.NUMBERS,
+    viewModel: NewSessionViewModel = viewModel(
+        factory = remember(initialMode) { newSessionViewModelFactory(initialMode) },
+    ),
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -76,8 +82,12 @@ fun NewSessionScreen(
         NewSessionForm(
             state = state,
             contentPadding = innerPadding,
+            onModeChange = viewModel::setMode,
             onMinChange = viewModel::setMin,
             onMaxChange = viewModel::setMax,
+            onItemsChange = viewModel::setItemsText,
+            onDiceCountChange = viewModel::setDiceCount,
+            onDiceSidesChange = viewModel::setDiceSides,
             onWithoutRepeatsChange = viewModel::setWithoutRepeats,
             onPreset = viewModel::applyPreset,
             onCreate = {
@@ -93,8 +103,12 @@ fun NewSessionScreen(
 private fun NewSessionForm(
     state: NewSessionUiState,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
+    onModeChange: (NewSessionMode) -> Unit,
     onMinChange: (String) -> Unit,
     onMaxChange: (String) -> Unit,
+    onItemsChange: (String) -> Unit,
+    onDiceCountChange: (String) -> Unit,
+    onDiceSidesChange: (String) -> Unit,
     onWithoutRepeatsChange: (Boolean) -> Unit,
     onPreset: (Int, Int, Boolean) -> Unit,
     onCreate: () -> Unit,
@@ -123,63 +137,161 @@ private fun NewSessionForm(
 
         Spacer(Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = state.minText,
-            onValueChange = onMinChange,
-            label = { Text(stringResource(R.string.range_from)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = state.minError,
-            supportingText = if (state.minError) {
-                { Text(stringResource(R.string.invalid_number)) }
-            } else {
-                null
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = state.maxText,
-            onValueChange = onMaxChange,
-            label = { Text(stringResource(R.string.range_to)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = state.maxError || state.rangeError,
-            supportingText = {
-                when {
-                    state.maxError -> Text(stringResource(R.string.invalid_number))
-                    state.rangeError -> Text(stringResource(R.string.range_error))
-                }
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.allow_repeats),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.allow_repeats_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Switch(
-                checked = state.withoutRepeats,
-                onCheckedChange = onWithoutRepeatsChange,
+        // Режим создания: числа, список элементов (2.1) или кубики (2.2).
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = state.mode == NewSessionMode.NUMBERS,
+                onClick = { onModeChange(NewSessionMode.NUMBERS) },
+                label = { Text(stringResource(R.string.mode_numbers)) },
+            )
+            FilterChip(
+                selected = state.mode == NewSessionMode.ITEMS,
+                onClick = { onModeChange(NewSessionMode.ITEMS) },
+                label = { Text(stringResource(R.string.mode_items)) },
+            )
+            FilterChip(
+                selected = state.mode == NewSessionMode.DICE,
+                onClick = { onModeChange(NewSessionMode.DICE) },
+                label = { Text(stringResource(R.string.mode_dice)) },
+            )
+            FilterChip(
+                selected = state.mode == NewSessionMode.COIN,
+                onClick = { onModeChange(NewSessionMode.COIN) },
+                label = { Text(stringResource(R.string.mode_coin)) },
+            )
+            FilterChip(
+                selected = state.mode == NewSessionMode.SHUFFLE,
+                onClick = { onModeChange(NewSessionMode.SHUFFLE) },
+                label = { Text(stringResource(R.string.mode_shuffle)) },
             )
         }
 
-        if (state.withoutRepeats && state.canCreate) {
+        Spacer(Modifier.height(16.dp))
+
+        if (state.mode == NewSessionMode.NUMBERS) {
+            OutlinedTextField(
+                value = state.minText,
+                onValueChange = onMinChange,
+                label = { Text(stringResource(R.string.range_from)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = state.minError,
+                supportingText = if (state.minError) {
+                    { Text(stringResource(R.string.invalid_number)) }
+                } else {
+                    null
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = state.maxText,
+                onValueChange = onMaxChange,
+                label = { Text(stringResource(R.string.range_to)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = state.maxError || state.rangeError,
+                supportingText = {
+                    when {
+                        state.maxError -> Text(stringResource(R.string.invalid_number))
+                        state.rangeError -> Text(stringResource(R.string.range_error))
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (state.mode == NewSessionMode.ITEMS || state.mode == NewSessionMode.SHUFFLE) {
+            OutlinedTextField(
+                value = state.itemsText,
+                onValueChange = onItemsChange,
+                label = {
+                    Text(
+                        stringResource(
+                            if (state.mode == NewSessionMode.SHUFFLE) {
+                                R.string.shuffle_label
+                            } else {
+                                R.string.items_label
+                            },
+                        ),
+                    )
+                },
+                supportingText = {
+                    Text(
+                        stringResource(
+                            if (state.mode == NewSessionMode.SHUFFLE) {
+                                R.string.shuffle_hint
+                            } else {
+                                R.string.items_hint
+                            },
+                        ),
+                    )
+                },
+                minLines = 5,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (state.mode == NewSessionMode.DICE) {
+            OutlinedTextField(
+                value = state.diceCountText,
+                onValueChange = onDiceCountChange,
+                label = { Text(stringResource(R.string.dice_count)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = state.diceCountText.isNotEmpty() && (state.diceCount ?: 0) < 1,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = state.diceSidesText,
+                onValueChange = onDiceSidesChange,
+                label = { Text(stringResource(R.string.dice_sides)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = state.diceSidesText.isNotEmpty() && (state.diceSides ?: 0) < 2,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            // Монета: пара «орёл/решка», кроме выбора режима ничего не нужно.
+            Text(
+                text = stringResource(R.string.coin_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Кубики, монета и перемешивание повторяются — переключатель повторов им не нужен.
+        if (
+            state.mode != NewSessionMode.DICE &&
+            state.mode != NewSessionMode.COIN &&
+            state.mode != NewSessionMode.SHUFFLE
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.allow_repeats),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.allow_repeats_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.withoutRepeats,
+                    onCheckedChange = onWithoutRepeatsChange,
+                )
+            }
+        }
+
+        if (state.mode == NewSessionMode.NUMBERS && state.withoutRepeats && state.canCreate) {
             Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(
@@ -211,8 +323,12 @@ private fun NewSessionScreenPreview() {
         NewSessionForm(
             state = NewSessionUiState(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+            onModeChange = {},
             onMinChange = {},
             onMaxChange = {},
+            onItemsChange = {},
+            onDiceCountChange = {},
+            onDiceSidesChange = {},
             onWithoutRepeatsChange = {},
             onPreset = { _, _, _ -> },
             onCreate = {},

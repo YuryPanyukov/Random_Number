@@ -1,5 +1,6 @@
 package CodeSyS.Random_Number.data
 
+import CodeSyS.Random_Number.domain.CoinSide
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
@@ -77,45 +78,135 @@ data class Session(
     )
 
     /**
-     * Параметры режима чисел.
-     *
-     * Пока режим один, payload всегда [SessionPayload.Numbers], поэтому
-     * здесь `Numbers` без обёртки: свойства `min`/`max`/`allowRepeats`
-     * и весь существующий код остались плоскими. Когда появятся другие
-     * режимы, каждый из них даст свою реализацию этих параметров
-     * (sealed-полиморфизм вместо `when` по флагу), а обращения к числовым
-     * полям останутся только в коде режима чисел.
+     * `true`, если сессия выбирает случайные элементы из списка
+     * ([SessionPayload.Items], задача 2.1), а не числа из диапазона.
      */
-    private val numbers: SessionPayload.Numbers
-        get() = payload as SessionPayload.Numbers
+    val isItemsMode: Boolean get() = payload is SessionPayload.Items
 
-    // Делегирование параметров режима чисел: код и данные режима «числа»
-    // остались плоскими (session.min, session.allowRepeats, …).
+    /** `true`, если сессия бросает кубики ([SessionPayload.Dice], задача 2.2). */
+    val isDiceMode: Boolean get() = payload is SessionPayload.Dice
 
-    /** Нижняя граница диапазона (режим чисел). */
-    val min: Int get() = numbers.min
+    /** `true`, если сессия бросает монету ([SessionPayload.Coin], задача 2.3). */
+    val isCoinMode: Boolean get() = payload is SessionPayload.Coin
 
-    /** Верхняя граница диапазона (режим чисел). */
-    val max: Int get() = numbers.max
+    /** `true`, если сессия перемешивает список ([SessionPayload.Shuffle], задача 2.4). */
+    val isShuffleMode: Boolean get() = payload is SessionPayload.Shuffle
 
-    /** `true` — повторы разрешены (режим чисел). */
-    val allowRepeats: Boolean get() = numbers.allowRepeats
+    /** `true`, если сессия генерирует числа из диапазона ([SessionPayload.Numbers]). */
+    val isNumbersMode: Boolean get() = payload is SessionPayload.Numbers
 
-    init {
-        // Параметры режима читаются напрямую; при добавлении нового режима
-        // это станет полиморфным доступом через SessionPayload.
-        payload as SessionPayload.Numbers
+    /**
+     * Список элементов режима [SessionPayload.Items] или
+     * [SessionPayload.Shuffle] в порядке ввода (пустой для режима чисел).
+     */
+    val items: List<String> get() = when (val payload = payload) {
+        is SessionPayload.Items -> payload.items
+        is SessionPayload.Shuffle -> payload.items
+        else -> emptyList()
     }
 
-    /** История выданных чисел (в порядке генерации). */
+    // Часть параметров у двух режимов общая по смыслу, но разная по полям.
+    // Для режима чисел это min/max, для списка — границы индексов `0..last`.
+    // Благодаря этому генерация, прогресс и подсчёт «выбрано X из Y»
+    // работают одинаково, а журнал остаётся списком Int (для списка — индексов).
+
+    /** Нижняя граница: `min` диапазона, `0` для списка/монеты, `1` для кубика. */
+    val min: Int get() = when (val payload = payload) {
+        is SessionPayload.Numbers -> payload.min
+        is SessionPayload.Items -> 0
+        is SessionPayload.Dice -> 1
+        is SessionPayload.Coin -> 0
+        is SessionPayload.Shuffle -> 0
+    }
+
+    /** Верхняя граница: `max`, последний индекс списка, грани кубика, `1` у монеты. */
+    val max: Int get() = when (val payload = payload) {
+        is SessionPayload.Numbers -> payload.max
+        is SessionPayload.Items -> payload.items.lastIndex
+        is SessionPayload.Dice -> payload.sides
+        is SessionPayload.Coin -> 1
+        is SessionPayload.Shuffle -> payload.items.lastIndex
+    }
+
+    /** `true` — повторы разрешены (у кубиков, монеты и перемешивания — всегда). */
+    val allowRepeats: Boolean get() = when (val payload = payload) {
+        is SessionPayload.Numbers -> payload.allowRepeats
+        is SessionPayload.Items -> payload.allowRepeats
+        is SessionPayload.Dice -> true
+        is SessionPayload.Coin -> true
+        is SessionPayload.Shuffle -> true
+    }
+
+    /** История выданных значений: числа либо индексы элементов списка. */
     val generated: List<Int> get() = log.map { it.value }
 
-    /** Последнее выданное число или `null`. */
+    /** Последнее выданное значение (число либо индекс элемента) или `null`. */
     val lastNumber: Int? get() = log.lastOrNull()?.value
 
-    /** Размер диапазона чисел (включительно). */
+    /** Отображаемое значение записи журнала: число, элемент, кубик или сторона монеты. */
+    fun displayOf(logValue: Int): String = when (val payload = payload) {
+        is SessionPayload.Numbers -> logValue.toString()
+        is SessionPayload.Items -> payload.items.getOrElse(logValue) { "?" }
+        is SessionPayload.Dice -> logValue.toString()
+        is SessionPayload.Coin -> CoinSide.of(logValue).label
+        is SessionPayload.Shuffle -> payload.items.getOrElse(logValue) { "?" }
+    }
+
+    /** Сколько раз выпал орёл (режим [SessionPayload.Coin]). */
+    val coinHeadsCount: Int get() = log.count { it.value == CoinSide.HEADS.ordinal }
+
+    /** Сколько раз выпала решка (режим [SessionPayload.Coin]). */
+    val coinTailsCount: Int get() = log.count { it.value == CoinSide.TAILS.ordinal }
+
+    /**
+     * Значения последнего полного броска кубиков (режим [SessionPayload.Dice]) —
+     * последние [SessionPayload.Dice.count] записей журнала, либо `null`.
+     */
+    val lastDiceRoll: List<Int>? get() {
+        val payload = payload as? SessionPayload.Dice ?: return null
+        if (log.size < payload.count) return null
+        return log.takeLast(payload.count).map { it.value }
+    }
+
+    /**
+     * Элементы последней перестановки (режим [SessionPayload.Shuffle]) —
+     * последние [SessionPayload.Shuffle.items] записей журнала, либо `null`,
+     * если полной перестановки ещё не было.
+     */
+    val lastShuffle: List<String>? get() {
+        val payload = payload as? SessionPayload.Shuffle ?: return null
+        if (log.size < payload.items.size) return null
+        return log.takeLast(payload.items.size).map { displayOf(it.value) }
+    }
+
+    /**
+     * Последнее выданное значение, готовое к показу, или `null`.
+     *
+     * Для кубиков — сумма последнего броска; для перемешивания —
+     * последняя перестановка через разделитель «→».
+     */
+    val lastDisplay: String? get() = when (val payload = payload) {
+        is SessionPayload.Numbers -> log.lastOrNull()?.let { displayOf(it.value) }
+        is SessionPayload.Items -> log.lastOrNull()?.let { displayOf(it.value) }
+        is SessionPayload.Dice -> lastDiceRoll?.sum()?.toString()
+        is SessionPayload.Coin -> log.lastOrNull()?.let { displayOf(it.value) }
+        is SessionPayload.Shuffle -> lastShuffle?.joinToString(SHUFFLE_SEPARATOR)
+    }
+
+    /** Вся история в порядке генерации, значения готовы к показу. */
+    val generatedDisplay: List<String> get() = log.map { displayOf(it.value) }
+
+    /** Размер множества значений: диапазон чисел, число элементов, грани кубика. */
     val rangeSize: Int by lazy {
-        numbers.size.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+        when (val payload = payload) {
+            is SessionPayload.Numbers ->
+                payload.size.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+
+            is SessionPayload.Items -> payload.items.size
+            is SessionPayload.Dice -> payload.sides
+            is SessionPayload.Coin -> 2
+            is SessionPayload.Shuffle -> payload.items.size
+        }
     }
 
     /**
@@ -215,6 +306,9 @@ data class Session(
     fun withSeed(seed: Long?): Session = copy(seed = seed)
 
     companion object {
+
+        /** Разделитель элементов перестановки в [lastDisplay]. */
+        private const val SHUFFLE_SEPARATOR = " → "
 
         /**
          * Создаёт новую сессию режима чисел.

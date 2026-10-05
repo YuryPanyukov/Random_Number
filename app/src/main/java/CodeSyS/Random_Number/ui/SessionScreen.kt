@@ -3,6 +3,7 @@ package CodeSyS.Random_Number.ui
 import CodeSyS.Random_Number.R
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.Session
+import CodeSyS.Random_Number.domain.DiceRoll
 import CodeSyS.Random_Number.ui.session.SessionEvent
 import CodeSyS.Random_Number.ui.session.SessionUiState
 import CodeSyS.Random_Number.ui.session.SessionViewModel
@@ -220,9 +221,9 @@ private fun SessionContent(
             return
         }
 
-        // Крупное последнее число (долгое нажатие → «Копировать»)
+        // Крупное последнее значение (число или элемент; долгое нажатие → «Копировать»)
         BigNumberCard(
-            value = state.lastNumber?.toString() ?: "—",
+            value = state.lastDisplay ?: "—",
             onCopy = onCopy,
         )
 
@@ -239,6 +240,30 @@ private fun SessionContent(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        // Детализация последнего броска кубиков: «4 + 2 + 6» (2.2).
+        if (session.isDiceMode) {
+            session.lastDiceRoll?.let { roll ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = DiceRoll.formatDetail(roll),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        // Последняя перестановка списка (2.4).
+        if (session.isShuffleMode) {
+            session.lastShuffle?.let { order ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = order.joinToString(" → "),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -265,25 +290,29 @@ private fun SessionContent(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Выбор количества чисел за одно нажатие (1.1)
-        Text(
-            text = stringResource(R.string.batch_size),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 4.dp),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            batchSizes.forEach { size ->
-                FilterChip(
-                    selected = state.batchSize == size,
-                    onClick = { onBatchSizeChange(size) },
-                    label = { Text(size.toString()) },
-                )
+        // Выбор количества значений за одно нажатие (1.1).
+        // У кубиков количество задано в сессии, у перемешивания за одно
+        // нажатие выдаётся одна перестановка — выбор не нужен.
+        if (!session.isDiceMode && !session.isShuffleMode) {
+            Text(
+                text = stringResource(R.string.batch_size),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                batchSizes.forEach { size ->
+                    FilterChip(
+                        selected = state.batchSize == size,
+                        onClick = { onBatchSizeChange(size) },
+                        label = { Text(size.toString()) },
+                    )
+                }
             }
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
+        }
 
         Button(
             onClick = onGenerate,
@@ -308,7 +337,9 @@ private fun SessionContent(
             OutlinedButton(
                 onClick = onUndo,
                 modifier = Modifier.weight(1f),
-                enabled = session.generated.isNotEmpty(),
+                // У перемешивания перестановка — атомарная запись, убирать
+                // из неё отдельный элемент смысла нет.
+                enabled = session.generated.isNotEmpty() && !session.isShuffleMode,
             ) {
                 Text(stringResource(R.string.undo_last))
             }
@@ -340,11 +371,13 @@ private fun SessionContent(
             }
         }
 
-        // История выданных чисел: ленивый список с кнопкой «показать ещё»
+        // История выданных значений: ленивый список с кнопкой «показать ещё»
         if (session.generated.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
             HistorySection(
-                generated = session.generated,
+                history = session.log.indices
+                    .reversed()
+                    .map { it to session.displayOf(session.log[it].value) },
                 visible = historyVisible,
                 onToggle = { historyVisible = !historyVisible },
                 onCopy = onCopy,
@@ -354,19 +387,24 @@ private fun SessionContent(
 
         Spacer(Modifier.height(16.dp))
 
-        // Статистика по истории (скрыта по умолчанию).
-        OutlinedButton(
-            onClick = onToggleStats,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.show_stats))
+        // Статистика: у монеты — счёт орлов/решек, у чисел/кубиков — SessionStats.
+        // Для списка и перемешивания не значима (индексы).
+        if (session.isCoinMode) {
+            CoinStatsSection(session = session)
+            Spacer(Modifier.height(16.dp))
+        } else if (!session.isItemsMode && !session.isShuffleMode) {
+            OutlinedButton(
+                onClick = onToggleStats,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.show_stats))
+            }
+            if (state.showStats) {
+                Spacer(Modifier.height(8.dp))
+                SessionStatsCard(stats = state.stats)
+            }
+            Spacer(Modifier.height(16.dp))
         }
-        if (state.showStats) {
-            Spacer(Modifier.height(8.dp))
-            SessionStatsCard(stats = state.stats)
-        }
-
-        Spacer(Modifier.height(16.dp))
 
         // Seed: фиксирует последовательность для проверки розыгрыша.
         SeedSection(session = session, onSetSeed = onSetSeed)
@@ -376,13 +414,28 @@ private fun SessionContent(
         // Экспорт истории в файл.
         ExportSection(onExportHistory = onExportHistory)
 
-        Spacer(Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(16.dp))
-
-        // Ручное добавление числа в историю (1.6)
-        ManualAddSection(session = session, onAdd = onAddManual)
+        // Ручное добавление числа в историю (1.6) — только для режима чисел.
+        if (session.isNumbersMode) {
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            ManualAddSection(session = session, onAdd = onAddManual)
+        }
     }
+}
+
+/** Счётчик исходов монеты: сколько раз выпал орёл и сколько — решка. */
+@Composable
+private fun CoinStatsSection(session: Session) {
+    Text(
+        text = stringResource(
+            R.string.coin_stats,
+            session.coinHeadsCount,
+            session.coinTailsCount,
+        ),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Поле seed: задаёт/сбрасывает воспроизводимую генерацию. */
@@ -509,7 +562,7 @@ private fun BigNumberCard(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = stringResource(R.string.last_number),
+                text = stringResource(R.string.last_result),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -557,17 +610,17 @@ private fun BigNumberCard(
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun HistorySection(
-    generated: List<Int>,
+    history: List<Pair<Int, String>>,
     visible: Boolean,
     onToggle: () -> Unit,
     onCopy: (String) -> Unit,
     onRemove: (Int) -> Unit,
 ) {
-    // Индекс и значение: при изменении истории меню не «перепрыгнет»
-    // на чужое число.
+    // Индекс в журнале и значение: при изменении истории меню не
+    // «перепрыгнет» на чужую запись.
     var menuIndex by remember { mutableStateOf<Int?>(null) }
-    var menuNumber by remember { mutableStateOf<Int?>(null) }
-    var shown by remember(generated.size) { mutableIntStateOf(HISTORY_PAGE) }
+    var menuValue by remember { mutableStateOf<String?>(null) }
+    var shown by remember(history.size) { mutableIntStateOf(HISTORY_PAGE) }
     val listState = rememberLazyListState()
     val longPressHint = stringResource(R.string.long_press_hint)
 
@@ -583,8 +636,8 @@ private fun HistorySection(
         Text(
             text = pluralStringResource(
                 R.plurals.history_count,
-                generated.size,
-                generated.size,
+                history.size,
+                history.size,
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -595,11 +648,9 @@ private fun HistorySection(
     }
 
     if (visible) {
-        val visibleCount = shown.coerceAtMost(generated.size)
-        // Новые числа — первыми.
-        val indices = remember(generated.size, visibleCount) {
-            (generated.indices.reversed()).take(visibleCount)
-        }
+        val visibleCount = shown.coerceAtMost(history.size)
+        // Новые значения — первыми.
+        val page = remember(history.size, visibleCount) { history.take(visibleCount) }
 
         LazyRow(
             state = listState,
@@ -608,8 +659,9 @@ private fun HistorySection(
                 .padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(items = indices.toList(), key = { it }) { index ->
-                val number = generated[index]
+            items(items = page, key = { it.first }) { entry ->
+                val index = entry.first
+                val value = entry.second
                 val deleteLabel = stringResource(R.string.delete)
                 val copyLabel = stringResource(R.string.copy)
                 Box {
@@ -622,36 +674,36 @@ private fun HistorySection(
                         ),
                         modifier = Modifier
                             .semantics {
-                                contentDescription = "$number. $longPressHint"
+                                contentDescription = "$value. $longPressHint"
                             }
                             .combinedClickable(
                                 onClick = {},
                                 onLongClick = {
                                     menuIndex = index
-                                    menuNumber = number
+                                    menuValue = value
                                 },
                                 onLongClickLabel = copyLabel,
                             ),
                     ) {
                         Text(
-                            text = number.toString(),
+                            text = value,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         )
                     }
                     DropdownMenu(
-                        expanded = menuIndex == index && menuNumber == number,
+                        expanded = menuIndex == index && menuValue == value,
                         onDismissRequest = {
                             menuIndex = null
-                            menuNumber = null
+                            menuValue = null
                         },
                     ) {
                         DropdownMenuItem(
                             text = { Text(copyLabel) },
                             onClick = {
-                                onCopy(number.toString())
+                                onCopy(value)
                                 menuIndex = null
-                                menuNumber = null
+                                menuValue = null
                             },
                         )
                         DropdownMenuItem(
@@ -659,7 +711,7 @@ private fun HistorySection(
                             onClick = {
                                 onRemove(index)
                                 menuIndex = null
-                                menuNumber = null
+                                menuValue = null
                             },
                         )
                     }
@@ -667,9 +719,9 @@ private fun HistorySection(
             }
         }
 
-        if (visibleCount < generated.size) {
+        if (visibleCount < history.size) {
             TextButton(onClick = { shown += HISTORY_PAGE }) {
-                Text(stringResource(R.string.history_show_more, generated.size - visibleCount))
+                Text(stringResource(R.string.history_show_more, history.size - visibleCount))
             }
         }
     }
