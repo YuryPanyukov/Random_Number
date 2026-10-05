@@ -1,9 +1,11 @@
 package CodeSyS.Random_Number.ui
 
+import CodeSyS.Random_Number.App
 import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -25,10 +27,71 @@ private object Routes {
 private fun String?.toNewSessionMode(): NewSessionMode =
     NewSessionMode.entries.firstOrNull { it.name == this } ?: NewSessionMode.NUMBERS
 
-/** Корневая навигация: главное меню → параметры новой сессии → генерация. */
+/** Intent action ярлыка «Новая сессия» (см. `res/xml/shortcuts.xml`). */
+const val ACTION_NEW_SESSION = "CodeSyS.Random_Number.action.NEW_SESSION"
+
+/** Intent action ярлыка «Последняя сессия». */
+const val ACTION_LAST_SESSION = "CodeSyS.Random_Number.action.LAST_SESSION"
+
+/** Что открыть при запуске приложения (в том числе по ярлыку рабочего стола). */
+enum class AppStartAction {
+    /** Обычный запуск: остаёмся в главном меню. */
+    NONE,
+
+    /** Открыть экран выбора режима новой сессии. */
+    NEW_SESSION,
+
+    /** Открыть последнюю использованную сессию. */
+    LAST_SESSION,
+}
+
+/**
+ * Отображает action ярлыка в [AppStartAction]: чистая функция, покрыта тестом.
+ */
+fun startActionFor(action: String?): AppStartAction = when (action) {
+    ACTION_NEW_SESSION -> AppStartAction.NEW_SESSION
+    ACTION_LAST_SESSION -> AppStartAction.LAST_SESSION
+    else -> AppStartAction.NONE
+}
+
+/**
+ * Корневая навигация: главное меню → параметры новой сессии → генерация.
+ *
+ * @param startAction действие ярлыка, с которым открылось приложение
+ * ([AppStartAction.NONE] для обычного запуска).
+ * @param onStartActionHandled вызывается после отработки [startAction],
+ * чтобы вызывающий сбросил его и переход не повторялся.
+ */
 @Composable
-fun AppNav() {
+fun AppNav(
+    startAction: AppStartAction = AppStartAction.NONE,
+    onStartActionHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+
+    // Переход по ярлыку: выбор режима либо последняя сессия.
+    LaunchedEffect(startAction) {
+        when (startAction) {
+            AppStartAction.NONE -> return@LaunchedEffect
+
+            AppStartAction.NEW_SESSION -> navController.navigate(Routes.MODE_PICKER) {
+                launchSingleTop = true
+            }
+
+            AppStartAction.LAST_SESSION -> {
+                val app = context.applicationContext as? App
+                val id = app?.container?.sessionRepository
+                    ?.observeSessionsOnce()
+                    ?.firstOrNull()
+                    ?.id
+                if (id != null) {
+                    navController.navigate(Routes.session(id)) { launchSingleTop = true }
+                }
+            }
+        }
+        onStartActionHandled()
+    }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {

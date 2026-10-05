@@ -6,6 +6,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -137,6 +138,51 @@ class SessionCodecTest {
         """.trimIndent()
 
         assertNull(SessionCodec.decodeOne(withoutSeed)!!.seed)
+    }
+
+    @Test
+    fun `decode - seedFromSecure is preserved`() {
+        val session = sample.copy(seed = 5L, seedFromSecure = true)
+
+        val decoded = SessionCodec.decodeOne(SessionCodec.encodeOne(session))!!
+
+        assertEquals(5L, decoded.seed)
+        assertTrue(decoded.seedFromSecure)
+    }
+
+    @Test
+    fun `decode - missing seedFromSecure defaults to false`() {
+        val withoutSource = """
+            {"id":"x","title":"t","min":1,"max":5,"allowRepeats":true,
+             "log":[],"createdAt":0,"lastUsedAt":0,"seed":7}
+        """.trimIndent()
+
+        assertFalse(SessionCodec.decodeOne(withoutSource)!!.seedFromSecure)
+    }
+
+    @Test
+    fun `decode - tags, favorite and archive are preserved`() {
+        val session = sample.withTags(listOf("a", "b")).withFavorite(true).withArchived(true)
+
+        val decoded = SessionCodec.decodeOne(SessionCodec.encodeOne(session))!!
+
+        assertEquals(listOf("a", "b"), decoded.tags)
+        assertTrue(decoded.isFavorite)
+        assertTrue(decoded.isArchived)
+    }
+
+    @Test
+    fun `decode - missing tags and flags default to empty and false`() {
+        val legacy = """
+            {"id":"x","title":"t","min":1,"max":5,"allowRepeats":true,
+             "log":[],"createdAt":0,"lastUsedAt":0}
+        """.trimIndent()
+
+        val decoded = SessionCodec.decodeOne(legacy)!!
+
+        assertTrue(decoded.tags.isEmpty())
+        assertFalse(decoded.isFavorite)
+        assertFalse(decoded.isArchived)
     }
 
     // --- Payload: дискриминатор type (2.0) ---

@@ -21,7 +21,15 @@ private fun CreationExtras.appContainer(): App =
  * [ViewModelProvider.Factory] с одинаковым кодом.
  */
 val HomeViewModelFactory = viewModelFactory {
-    initializer { HomeViewModel(appContainer().container.sessionRepository) }
+    initializer {
+        val app = appContainer()
+        HomeViewModel(
+            repository = app.container.sessionRepository,
+            honestDraw = app.container.honestDraw,
+            // Поиск по заголовку использует локализованное название.
+            texts = ResourceSessionTexts(app.resources),
+        )
+    }
 }
 
 /**
@@ -41,11 +49,14 @@ fun newSessionViewModelFactory(mode: NewSessionMode) = viewModelFactory {
 
 val SessionViewModelFactory = viewModelFactory {
     initializer {
-        val container = appContainer().container
+        val app = appContainer()
+        val container = app.container
         SessionViewModel(
             repository = container.sessionRepository,
             generator = container.numberGenerator,
             feedback = container.feedbackProvider,
+            // Тексты для экспорта/показа истории в текущей локали.
+            texts = ResourceSessionTexts(app.resources),
             onHistoryChanged = container::refreshLatestSessionWidget,
         )
     }

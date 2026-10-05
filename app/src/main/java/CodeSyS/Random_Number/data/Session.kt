@@ -40,6 +40,12 @@ data class GeneratedEntry(
  * сессии сортируются по убыванию этого поля.
  * @param seed значение seed для воспроизводимой генерации
  * (`null` — генерация невоспроизводима).
+ * @param seedFromSecure `true`, если seed выбран криптографическим
+ * источником ([java.security.SecureRandom]) — сессии честного розыгрыша.
+ * Показывается в шаринге результата как «источник».
+ * @param tags пользовательские теги (без пустых и повторов).
+ * @param isFavorite `true` — сессия в избранном.
+ * @param isArchived `true` — сессия в архиве (скрыта из общего списка).
  */
 @Serializable
 data class Session(
@@ -50,6 +56,10 @@ data class Session(
     val createdAt: Long = 0L,
     val lastUsedAt: Long = createdAt,
     val seed: Long? = null,
+    val seedFromSecure: Boolean = false,
+    val tags: List<String> = emptyList(),
+    val isFavorite: Boolean = false,
+    val isArchived: Boolean = false,
 ) {
     /**
      * Плоский конструктор для режима чисел.
@@ -67,6 +77,10 @@ data class Session(
         createdAt: Long = 0L,
         lastUsedAt: Long = createdAt,
         seed: Long? = null,
+        seedFromSecure: Boolean = false,
+        tags: List<String> = emptyList(),
+        isFavorite: Boolean = false,
+        isArchived: Boolean = false,
     ) : this(
         id = id,
         title = title,
@@ -75,6 +89,10 @@ data class Session(
         createdAt = createdAt,
         lastUsedAt = lastUsedAt,
         seed = seed,
+        seedFromSecure = seedFromSecure,
+        tags = tags,
+        isFavorite = isFavorite,
+        isArchived = isArchived,
     )
 
     /**
@@ -144,11 +162,14 @@ data class Session(
     val lastNumber: Int? get() = log.lastOrNull()?.value
 
     /** Отображаемое значение записи журнала: число, элемент, кубик или сторона монеты. */
-    fun displayOf(logValue: Int): String = when (val payload = payload) {
+    fun displayOf(logValue: Int): String = displayOf(logValue, DefaultSessionTexts)
+
+    /** Как [displayOf], но с локализованными метками (стороны монеты). */
+    fun displayOf(logValue: Int, texts: SessionTexts): String = when (val payload = payload) {
         is SessionPayload.Numbers -> logValue.toString()
         is SessionPayload.Items -> payload.items.getOrElse(logValue) { "?" }
         is SessionPayload.Dice -> logValue.toString()
-        is SessionPayload.Coin -> CoinSide.of(logValue).label
+        is SessionPayload.Coin -> texts.coinSide(CoinSide.of(logValue))
         is SessionPayload.Shuffle -> payload.items.getOrElse(logValue) { "?" }
     }
 
@@ -173,10 +194,13 @@ data class Session(
      * последние [SessionPayload.Shuffle.items] записей журнала, либо `null`,
      * если полной перестановки ещё не было.
      */
-    val lastShuffle: List<String>? get() {
+    val lastShuffle: List<String>? get() = lastShuffle(DefaultSessionTexts)
+
+    /** Как [lastShuffle], но с локализованными метками. */
+    fun lastShuffle(texts: SessionTexts): List<String>? {
         val payload = payload as? SessionPayload.Shuffle ?: return null
         if (log.size < payload.items.size) return null
-        return log.takeLast(payload.items.size).map { displayOf(it.value) }
+        return log.takeLast(payload.items.size).map { displayOf(it.value, texts) }
     }
 
     /**
@@ -185,16 +209,22 @@ data class Session(
      * Для кубиков — сумма последнего броска; для перемешивания —
      * последняя перестановка через разделитель «→».
      */
-    val lastDisplay: String? get() = when (val payload = payload) {
-        is SessionPayload.Numbers -> log.lastOrNull()?.let { displayOf(it.value) }
-        is SessionPayload.Items -> log.lastOrNull()?.let { displayOf(it.value) }
+    val lastDisplay: String? get() = lastDisplay(DefaultSessionTexts)
+
+    /** Как [lastDisplay], но с локализованными метками. */
+    fun lastDisplay(texts: SessionTexts): String? = when (val payload = payload) {
+        is SessionPayload.Numbers -> log.lastOrNull()?.let { displayOf(it.value, texts) }
+        is SessionPayload.Items -> log.lastOrNull()?.let { displayOf(it.value, texts) }
         is SessionPayload.Dice -> lastDiceRoll?.sum()?.toString()
-        is SessionPayload.Coin -> log.lastOrNull()?.let { displayOf(it.value) }
-        is SessionPayload.Shuffle -> lastShuffle?.joinToString(SHUFFLE_SEPARATOR)
+        is SessionPayload.Coin -> log.lastOrNull()?.let { displayOf(it.value, texts) }
+        is SessionPayload.Shuffle -> lastShuffle(texts)?.joinToString(SHUFFLE_SEPARATOR)
     }
 
     /** Вся история в порядке генерации, значения готовы к показу. */
-    val generatedDisplay: List<String> get() = log.map { displayOf(it.value) }
+    val generatedDisplay: List<String> get() = generatedDisplay(DefaultSessionTexts)
+
+    /** Как [generatedDisplay], но с локализованными метками. */
+    fun generatedDisplay(texts: SessionTexts): List<String> = log.map { displayOf(it.value, texts) }
 
     /** Размер множества значений: диапазон чисел, число элементов, грани кубика. */
     val rangeSize: Int by lazy {
@@ -305,6 +335,39 @@ data class Session(
      */
     fun withSeed(seed: Long?): Session = copy(seed = seed)
 
+    /**
+     * Возвращает копию сессии с новым [id], пустой историей и настройками
+     * режима из оригинала (payload, seed, источник seed).
+     *
+     * Используется для быстрого повторения той же конфигурации:
+     * «ещё один кубик», «ещё одна лотерея» и т. п.
+     *
+     * @param now время создания копии — попадает в [createdAt]/[lastUsedAt].
+     */
+    fun duplicate(now: Long, id: String = UUID.randomUUID().toString()): Session = copy(
+        id = id,
+        log = emptyList(),
+        createdAt = now,
+        lastUsedAt = now,
+        // Новый экземпляр не наследует избранное/архив; теги — часть настроек.
+        isFavorite = false,
+        isArchived = false,
+    )
+
+    /** Возвращает копию сессии с флагом избранного [favorite]. */
+    fun withFavorite(favorite: Boolean): Session = copy(isFavorite = favorite)
+
+    /** Возвращает копию сессии с флагом архива [archived]. */
+    fun withArchived(archived: Boolean): Session = copy(isArchived = archived)
+
+    /**
+     * Возвращает копию сессии с тегами [tags] в нормализованном виде:
+     * без пробелов по краям, пустых значений и повторов.
+     */
+    fun withTags(tags: List<String>): Session = copy(
+        tags = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+    )
+
     companion object {
 
         /** Разделитель элементов перестановки в [lastDisplay]. */
@@ -322,6 +385,7 @@ data class Session(
             now: Long,
             title: String = "$min..$max" + if (allowRepeats) "" else ", без повторов",
             seed: Long? = null,
+            seedFromSecure: Boolean = false,
         ): Session = Session(
             id = UUID.randomUUID().toString(),
             title = title,
@@ -332,6 +396,7 @@ data class Session(
             createdAt = now,
             lastUsedAt = now,
             seed = seed,
+            seedFromSecure = seedFromSecure,
         )
 
         /**
@@ -345,6 +410,7 @@ data class Session(
             now: Long,
             title: String = payload.toString(),
             seed: Long? = null,
+            seedFromSecure: Boolean = false,
         ): Session = Session(
             id = UUID.randomUUID().toString(),
             title = title,
@@ -353,6 +419,7 @@ data class Session(
             createdAt = now,
             lastUsedAt = now,
             seed = seed,
+            seedFromSecure = seedFromSecure,
         )
     }
 }

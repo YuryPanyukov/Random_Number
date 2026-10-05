@@ -1,9 +1,11 @@
 package CodeSyS.Random_Number.ui.session
 
+import CodeSyS.Random_Number.data.DefaultSessionTexts
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.Session
 import CodeSyS.Random_Number.data.SessionPayload
 import CodeSyS.Random_Number.data.SessionRepository
+import CodeSyS.Random_Number.data.SessionTexts
 import CodeSyS.Random_Number.domain.BatchGenerationResult
 import CodeSyS.Random_Number.domain.CoinFlipper
 import CodeSyS.Random_Number.domain.DiceRoller
@@ -34,11 +36,17 @@ sealed interface SessionEvent {
     /** Сессия не найдена (удалена) — вернуться в главное меню. */
     data object SessionNotFound : SessionEvent
 
-    /** Подготовлен файл для сохранения — [text] и имя файла [fileName]. */
+    /**
+     * Подготовлен файл для сохранения — [text] и имя файла [fileName].
+     *
+     * @param share `true` — содержимое нужно отдать в share-sheet, а не
+     * сохранять в файл.
+     */
     data class ExportReady(
         val text: String,
         val fileName: String,
         val mimeType: String,
+        val share: Boolean = false,
     ) : SessionEvent
 }
 
@@ -89,6 +97,8 @@ class SessionViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
     private val feedback: FeedbackProvider? = null,
     private val randomMode: RandomSourceMode = RandomSourceMode.DEFAULT,
+    /** Локализованные строки (заголовок, стороны монеты, экспорт). */
+    private val texts: SessionTexts = DefaultSessionTexts,
     /** Вызывается после каждого изменения истории — обновляет виджет (5.4). */
     private val onHistoryChanged: () -> Unit = {},
 ) : ViewModel() {
@@ -120,7 +130,7 @@ class SessionViewModel(
             SessionUiState(
                 session = session,
                 lastNumber = session.lastNumber,
-                lastDisplay = session.lastDisplay,
+                lastDisplay = session.lastDisplay(texts),
                 stats = statsFor(session),
                 isLoading = false,
             )
@@ -160,7 +170,7 @@ class SessionViewModel(
                 copy(
                     session = updated,
                     lastNumber = result.numbers.last(),
-                    lastDisplay = updated.lastDisplay,
+                    lastDisplay = updated.lastDisplay(texts),
                     // Сразу сообщаем, если этим батчем диапазон исчерпан.
                     showExhaustedDialog = updated.isExhausted,
                     lastBatchPartial = result.partial,
@@ -197,7 +207,7 @@ class SessionViewModel(
                     copy(
                         session = updated,
                         lastNumber = result.indices.last(),
-                        lastDisplay = updated.lastDisplay,
+                        lastDisplay = updated.lastDisplay(texts),
                         showExhaustedDialog = updated.isExhausted,
                         lastBatchPartial = result.partial,
                     )
@@ -223,7 +233,7 @@ class SessionViewModel(
         return copy(
             session = updated,
             lastNumber = roll.sum,
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
             stats = statsFor(updated),
         )
     }
@@ -242,7 +252,7 @@ class SessionViewModel(
         return copy(
             session = updated,
             lastNumber = values.last(),
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
             stats = statsFor(updated),
         )
     }
@@ -263,7 +273,7 @@ class SessionViewModel(
         return copy(
             session = updated,
             lastNumber = indices.last(),
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
         )
     }
 
@@ -277,7 +287,7 @@ class SessionViewModel(
         copy(
             session = updated,
             lastNumber = updated.lastNumber,
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
             stats = statsFor(updated),
         )
     }
@@ -291,7 +301,7 @@ class SessionViewModel(
         copy(
             session = updated,
             lastNumber = updated.lastNumber,
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
             stats = statsFor(updated),
         )
     }
@@ -308,7 +318,7 @@ class SessionViewModel(
         copy(
             session = updated,
             lastNumber = number,
-            lastDisplay = updated.lastDisplay,
+            lastDisplay = updated.lastDisplay(texts),
             stats = statsFor(updated),
         )
     }
@@ -347,14 +357,20 @@ class SessionViewModel(
         copy(session = updated)
     }
 
-    /** Подготавливает файл с историей сессии для сохранения. */
-    fun exportHistory(format: HistoryExporter.Format) = enqueue {
+    /**
+     * Подготавливает историю сессии в выбранном формате.
+     *
+     * @param share `true` — отдать содержимое в share-sheet, иначе —
+     * предложить сохранить в файл.
+     */
+    fun exportHistory(format: HistoryExporter.Format, share: Boolean = false) = enqueue {
         val session = session ?: return@enqueue this
         _events.tryEmit(
             SessionEvent.ExportReady(
-                text = HistoryExporter.export(session, format),
+                text = HistoryExporter.export(session, format, texts),
                 fileName = HistoryExporter.fileName(format, clock()),
                 mimeType = format.mimeType,
+                share = share,
             ),
         )
         this

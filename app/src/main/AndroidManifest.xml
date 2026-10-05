@@ -18,6 +18,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.RandomNumbers"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -25,6 +26,11 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Ярлыки долгого нажатия по иконке (3.14). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Виджет «последняя сессия» (5.4). -->

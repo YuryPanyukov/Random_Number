@@ -7,6 +7,7 @@ import CodeSyS.Random_Number.data.SettingsRepository
 import CodeSyS.Random_Number.domain.NumberGenerator
 import CodeSyS.Random_Number.domain.SessionGenerator
 import CodeSyS.Random_Number.platform.FeedbackProvider
+import CodeSyS.Random_Number.platform.HonestDraw
 import CodeSyS.Random_Number.platform.QuickGenerate
 import CodeSyS.Random_Number.platform.SystemFeedbackProvider
 import CodeSyS.Random_Number.widget.LatestSessionWidget
@@ -39,6 +40,9 @@ class AppContainer(context: Context) {
         repository = sessionRepository,
         generator = SessionGenerator(numberGenerator = numberGenerator),
     )
+
+    /** Честный розыгрыш «в один тап»: seed из SecureRandom + первый розыгрыш. */
+    val honestDraw: HonestDraw = HonestDraw(repository = sessionRepository)
 
     /**
      * Перерисовывает виджет «последняя сессия» после изменения данных

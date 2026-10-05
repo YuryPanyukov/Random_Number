@@ -104,6 +104,8 @@ fun SessionScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val texts = LocalSessionTexts.current
+    val documentSaver = rememberDocumentSaver()
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(sessionId) {
         if (sessionId != null) viewModel.loadSession(sessionId)
@@ -115,22 +117,10 @@ fun SessionScreen(
             when (event) {
                 is SessionEvent.SessionNotFound -> onBack()
 
-                is SessionEvent.ExportReady -> {
-                    val intent = createSaveDocumentIntent(
-                        text = event.text,
-                        fileName = event.fileName,
-                        mimeType = event.mimeType,
-                    )
-                    if (intent != null) {
-                        runCatching { context.startActivity(intent) }
-                            .onFailure {
-                                // Диалог сохранения недоступен — отдаём
-                                // текст через системный share-sheet.
-                                shareText(context, event.text)
-                            }
-                    } else {
-                        shareText(context, event.text)
-                    }
+                is SessionEvent.ExportReady -> if (event.share) {
+                    shareText(context, event.text)
+                } else {
+                    documentSaver.save(event.text, event.fileName, event.mimeType)
                 }
             }
         }
@@ -140,7 +130,9 @@ fun SessionScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(state.session?.title ?: stringResource(R.string.generation)) },
+                title = {
+                    Text(state.session?.let { texts.title(it) } ?: stringResource(R.string.generation))
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -164,11 +156,12 @@ fun SessionScreen(
             onAddManual = viewModel::addManualNumber,
             onCopy = { clipboard.setText(AnnotatedString(it)) },
             onShare = {
-                state.session?.let { session -> shareText(context, buildShareText(session)) }
+                state.session?.let { session -> shareText(context, buildShareText(session, texts)) }
             },
             onToggleStats = viewModel::toggleStats,
             onSetSeed = viewModel::setSeed,
-            onExportHistory = viewModel::exportHistory,
+            onSaveHistory = { format -> viewModel.exportHistory(format, share = false) },
+            onShareHistory = { format -> viewModel.exportHistory(format, share = true) },
         )
     }
 
@@ -200,9 +193,11 @@ private fun SessionContent(
     onShare: () -> Unit,
     onToggleStats: () -> Unit,
     onSetSeed: (Long?) -> Unit,
-    onExportHistory: (HistoryExporter.Format) -> Unit,
+    onSaveHistory: (HistoryExporter.Format) -> Unit,
+    onShareHistory: (HistoryExporter.Format) -> Unit,
 ) {
     val session = state.session
+    val texts = LocalSessionTexts.current
     var historyVisible by remember { mutableStateOf(true) }
 
     Column(
@@ -377,7 +372,7 @@ private fun SessionContent(
             HistorySection(
                 history = session.log.indices
                     .reversed()
-                    .map { it to session.displayOf(session.log[it].value) },
+                    .map { it to session.displayOf(session.log[it].value, texts) },
                 visible = historyVisible,
                 onToggle = { historyVisible = !historyVisible },
                 onCopy = onCopy,
@@ -411,8 +406,8 @@ private fun SessionContent(
 
         Spacer(Modifier.height(8.dp))
 
-        // Экспорт истории в файл.
-        ExportSection(onExportHistory = onExportHistory)
+        // Экспорт истории: файл или share-sheet в выбранном формате.
+        ExportSection(onSave = onSaveHistory, onShare = onShareHistory)
 
         // Ручное добавление числа в историю (1.6) — только для режима чисел.
         if (session.isNumbersMode) {
@@ -505,37 +500,64 @@ private fun SeedSection(
     }
 }
 
-/** Меню экспорта истории в CSV/TXT/JSON. */
+/**
+ * Экспорт истории: выбор формата и способа — сохранить в файл
+ * (`ACTION_CREATE_DOCUMENT`) или отдать через share-sheet.
+ */
 @Composable
-private fun ExportSection(onExportHistory: (HistoryExporter.Format) -> Unit) {
-    var menuOpen by remember { mutableStateOf(false) }
+private fun ExportSection(
+    onSave: (HistoryExporter.Format) -> Unit,
+    onShare: (HistoryExporter.Format) -> Unit,
+) {
+    var format by remember { mutableStateOf(HistoryExporter.Format.CSV) }
 
-    Box(Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = { menuOpen = true },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.export_history))
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            HistoryExporter.Format.entries.forEach { format ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(format.labelRes())) },
-                    onClick = {
-                        menuOpen = false
-                        onExportHistory(format)
-                    },
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.export_history),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HistoryExporter.Format.entries.forEach { candidate ->
+                FilterChip(
+                    selected = format == candidate,
+                    onClick = { format = candidate },
+                    label = { Text(candidate.extension.uppercase()) },
                 )
+            }
+        }
+        Text(
+            text = stringResource(format.labelRes()),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = { onSave(format) },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.export_save))
+            }
+            OutlinedButton(
+                onClick = { onShare(format) },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.share))
             }
         }
     }
 }
 
-/** Локализованное название формата экспорта. */
+/** Локализованное описание формата экспорта. */
 private fun HistoryExporter.Format.labelRes(): Int = when (this) {
     HistoryExporter.Format.CSV -> R.string.export_format_csv
     HistoryExporter.Format.TXT -> R.string.export_format_txt
     HistoryExporter.Format.JSON -> R.string.export_format_json
+    HistoryExporter.Format.MARKDOWN -> R.string.export_format_markdown
 }
 
 /** Крупное число с долгим нажатием → меню «Копировать». */
@@ -824,7 +846,8 @@ private fun SessionScreenPreview() {
             onShare = {},
             onToggleStats = {},
             onSetSeed = {},
-            onExportHistory = {},
+            onSaveHistory = {},
+            onShareHistory = {},
         )
     }
 }

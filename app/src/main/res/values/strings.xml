@@ -17,6 +17,24 @@
     <string name="delete_session_message">Сессия «%s» будет удалена без возможности восстановления.</string>
     <string name="session_generated_count">Сгенерировано чисел: %d</string>
     <string name="session_progress">Выбрано %1$d из %2$d</string>
+    <string name="duplicate">Дублировать</string>
+    <string name="session_duplicated">Сессия продублирована</string>
+    <string name="search_hint">Поиск по названию и тегам</string>
+    <string name="filter_all">Все</string>
+    <string name="filter_favorites">Избранное</string>
+    <string name="filter_archive">Архив</string>
+    <string name="sort_date">По дате</string>
+    <string name="sort_title">По названию</string>
+    <string name="sort_progress">По прогрессу</string>
+    <string name="nothing_found">Ничего не найдено</string>
+    <string name="add_to_favorites">В избранное</string>
+    <string name="remove_from_favorites">Убрать из избранного</string>
+    <string name="archive">В архив</string>
+    <string name="unarchive">Из архива</string>
+    <string name="tags_title">Теги</string>
+    <string name="tags_label">Теги через запятую</string>
+    <string name="tags_hint">Используются для поиска</string>
+    <string name="save">Сохранить</string>
 
     <!-- Экран сессии -->
     <string name="generation">Генерация</string>
@@ -68,6 +86,8 @@
     <string name="export_format_csv">CSV (с временем)</string>
     <string name="export_format_txt">TXT (список чисел)</string>
     <string name="export_format_json">JSON (сессия целиком)</string>
+    <string name="export_format_markdown">Markdown (таблица с временем)</string>
+    <string name="export_save">Сохранить в файл</string>
     <string name="seed">Seed (воспроизводимость)</string>
     <string name="seed_hint">С одинаковым seed генерация повторяется</string>
     <string name="seed_set">Зафиксировать</string>
@@ -81,6 +101,12 @@
     <string name="tile_label">Сгенерировать</string>
     <string name="widget_generate">Сгенерировать</string>
     <string name="widget_no_sessions">Нет сессий</string>
+
+    <!-- Ярлыки рабочего стола -->
+    <string name="shortcut_new_short">Новая</string>
+    <string name="shortcut_new_long">Новая сессия</string>
+    <string name="shortcut_last_short">Последняя</string>
+    <string name="shortcut_last_long">Последняя сессия</string>
 
     <!-- Выбор режима -->
     <string name="mode_picker_title">Что генерировать?</string>
@@ -112,12 +138,42 @@
     <string name="allow_repeats_hint">Ранее сгенерированные числа не будут появляться снова</string>
     <string name="start_session">Начать генерацию</string>
 
+    <!-- Честный розыгрыш -->
+    <string name="honest_draw_title">Честный розыгрыш</string>
+    <string name="honest_draw_hint">Seed выбирается криптографически и сохраняется в сессии — результат можно проверить.</string>
+    <string name="honest_draw_number">Число 1–100</string>
+    <string name="honest_draw_list">Из списка</string>
+    <string name="honest_draw_list_title">Участники розыгрыша</string>
+    <string name="honest_draw_list_label">Имена (по одному в строке)</string>
+    <string name="honest_draw_list_hint">Пустые строки и дубликаты игнорируются</string>
+    <string name="honest_draw_list_min">Нужно минимум два участника</string>
+    <string name="honest_draw_start">Провести розыгрыш</string>
+    <string name="honest_draw_failed">Не удалось провести розыгрыш</string>
+
     <!-- Пресеты диапазонов -->
     <string name="presets">Быстрые диапазоны</string>
     <string name="preset_dice">Кубик 1–6</string>
     <string name="preset_coin">Монета 0–1</string>
     <string name="preset_lottery">Лотерея 1–45</string>
     <string name="preset_hundred">Сотня 1–100</string>
+
+    <!-- Заголовки сессий и служебные строки -->
+    <string name="title_without_repeats_suffix">, без повторов</string>
+    <string name="title_list">Список (%1$d)</string>
+    <string name="title_coin">Монета</string>
+    <string name="title_shuffle">Перемешивание (%1$d)</string>
+    <string name="title_honest_draw">Честный розыгрыш</string>
+    <string name="title_honest_draw_list">Честный розыгрыш (список)</string>
+    <string name="coin_heads">Орёл</string>
+    <string name="coin_tails">Решка</string>
+    <string name="export_range_items">%1$d элементов</string>
+    <string name="export_range_coin">Орёл/Решка</string>
+    <string name="export_range_numbers">%1$d..%2$d</string>
+    <string name="export_markdown_value">Значение</string>
+    <string name="export_markdown_time">Время</string>
+    <string name="export_unknown_time">—</string>
+    <string name="share_manual_seed_source">задан вручную</string>
+    <string name="share_verification_hint">Проверка: с этим seed генерация повторяется.</string>
 
     <!-- Настройки -->
     <string name="settings">Настройки</string>

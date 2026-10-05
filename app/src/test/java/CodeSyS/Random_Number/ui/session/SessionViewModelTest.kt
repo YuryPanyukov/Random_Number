@@ -772,6 +772,31 @@ class SessionViewModelTest {
         assertTrue(event.text.startsWith("value;at"))
         assertTrue(event.fileName.endsWith(".csv"))
         assertEquals("text/csv", event.mimeType)
+        assertFalse(event.share)
+    }
+
+    @Test
+    fun `exportHistory share - emits Markdown flagged for the share sheet`() = runTest(dispatcher) {
+        repository.create(session(min = 1, max = 10, allowRepeats = false))
+        val vm = viewModel()
+        vm.loadSession("s1")
+        advanceUntilIdle()
+        vm.generate()
+        advanceUntilIdle()
+
+        val events = mutableListOf<SessionEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.events.collect { events.add(it) }
+        }
+
+        vm.exportHistory(HistoryExporter.Format.MARKDOWN, share = true)
+        advanceUntilIdle()
+
+        val event = events.filterIsInstance<SessionEvent.ExportReady>().single()
+        assertTrue(event.share)
+        assertTrue(event.fileName.endsWith(".md"))
+        assertEquals("text/markdown", event.mimeType)
+        assertTrue(event.text.startsWith("#"))
     }
 
     // --- Режим «элемент из списка» (2.1) ---

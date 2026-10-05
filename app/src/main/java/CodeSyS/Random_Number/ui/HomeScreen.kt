@@ -5,11 +5,18 @@ import CodeSyS.Random_Number.data.Session
 import CodeSyS.Random_Number.ui.home.HomeEvent
 import CodeSyS.Random_Number.ui.home.HomeUiState
 import CodeSyS.Random_Number.ui.home.HomeViewModel
+import CodeSyS.Random_Number.ui.home.SessionFilter
+import CodeSyS.Random_Number.ui.home.SessionSort
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,17 +30,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -62,7 +79,8 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 /**
- * Главный экран: список сохранённых сессий + кнопка «Новая сессия».
+ * Главный экран: поиск/фильтр/сортировка сессий, карточка честного розыгрыша
+ * и список сохранённых сессий.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,14 +92,21 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val texts = LocalSessionTexts.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val documentSaver = rememberDocumentSaver()
     var sessionToDelete by remember { mutableStateOf<Session?>(null) }
+    var sessionToTag by remember { mutableStateOf<Session?>(null) }
+    var honestListOpen by remember { mutableStateOf(false) }
+    var exportMenuOpen by remember { mutableStateOf(false) }
 
     // Строки читаем в момент композиции: LocalContext не реагирует
     // на смену конфигурации, и snackbar показал бы устаревший текст.
     val importDoneTemplate = stringResource(R.string.import_done)
     val importFailedText = stringResource(R.string.import_failed)
+    val honestDrawFailedText = stringResource(R.string.honest_draw_failed)
+    val sessionDuplicatedText = stringResource(R.string.session_duplicated)
 
     val openDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -105,18 +130,10 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is HomeEvent.ExportReady -> {
-                    val intent = createSaveDocumentIntent(
-                        text = event.text,
-                        fileName = event.fileName,
-                        mimeType = event.mimeType,
-                    )
-                    if (intent != null) {
-                        runCatching { context.startActivity(intent) }
-                            .onFailure { shareText(context, event.text) }
-                    } else {
-                        shareText(context, event.text)
-                    }
+                is HomeEvent.ExportReady -> if (event.share) {
+                    shareText(context, event.text)
+                } else {
+                    documentSaver.save(event.text, event.fileName, event.mimeType)
                 }
 
                 is HomeEvent.Imported -> snackbarHostState.showSnackbar(
@@ -125,6 +142,19 @@ fun HomeScreen(
 
                 HomeEvent.ImportFailed -> snackbarHostState.showSnackbar(
                     importFailedText,
+                )
+
+                is HomeEvent.HonestDrawReady -> shareText(
+                    context,
+                    buildShareText(event.session, texts),
+                )
+
+                HomeEvent.HonestDrawFailed -> snackbarHostState.showSnackbar(
+                    honestDrawFailedText,
+                )
+
+                HomeEvent.SessionDuplicated -> snackbarHostState.showSnackbar(
+                    sessionDuplicatedText,
                 )
             }
         }
@@ -144,14 +174,35 @@ fun HomeScreen(
                             contentDescription = stringResource(R.string.import_sessions),
                         )
                     }
-                    IconButton(
-                        onClick = { viewModel.exportAllSessions() },
-                        enabled = state.sessions.isNotEmpty(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = stringResource(R.string.export_sessions),
-                        )
+                    Box {
+                        IconButton(
+                            onClick = { exportMenuOpen = true },
+                            enabled = state.sessions.isNotEmpty(),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = stringResource(R.string.export_sessions),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = exportMenuOpen,
+                            onDismissRequest = { exportMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.export_sessions)) },
+                                onClick = {
+                                    exportMenuOpen = false
+                                    viewModel.exportAllSessions(share = false)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share)) },
+                                onClick = {
+                                    exportMenuOpen = false
+                                    viewModel.exportAllSessions(share = true)
+                                },
+                            )
+                        }
                     }
                     IconButton(onClick = onSettings) {
                         Icon(
@@ -168,23 +219,49 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
-        if (state.sessions.isEmpty() && !state.isLoading) {
-            EmptyContent(modifier = Modifier.padding(innerPadding))
-        } else {
-            SessionList(
-                state = state,
-                contentPadding = innerPadding,
-                onOpenSession = onOpenSession,
-                onDeleteRequest = { sessionToDelete = it },
-            )
-        }
+        HomeContent(
+            state = state,
+            contentPadding = innerPadding,
+            onOpenSession = onOpenSession,
+            onDeleteRequest = { sessionToDelete = it },
+            onDuplicate = { viewModel.duplicateSession(it.id) },
+            onToggleFavorite = { viewModel.toggleFavorite(it.id) },
+            onToggleArchived = { viewModel.toggleArchived(it.id) },
+            onEditTags = { sessionToTag = it },
+            onQueryChange = viewModel::setQuery,
+            onFilterChange = viewModel::setFilter,
+            onSortChange = viewModel::setSort,
+            onHonestNumber = viewModel::drawHonestNumber,
+            onHonestList = { honestListOpen = true },
+        )
+    }
+
+    if (honestListOpen) {
+        HonestDrawListDialog(
+            onDismiss = { honestListOpen = false },
+            onConfirm = { items ->
+                honestListOpen = false
+                viewModel.drawHonestFromList(items)
+            },
+        )
+    }
+
+    sessionToTag?.let { session ->
+        TagsDialog(
+            initial = session.tags,
+            onDismiss = { sessionToTag = null },
+            onConfirm = { tags ->
+                viewModel.setTags(session.id, tags)
+                sessionToTag = null
+            },
+        )
     }
 
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
             title = { Text(stringResource(R.string.delete_session_title)) },
-            text = { Text(stringResource(R.string.delete_session_message, session.title)) },
+            text = { Text(stringResource(R.string.delete_session_message, texts.title(session))) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -207,7 +284,7 @@ fun HomeScreen(
 private fun EmptyContent(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -225,79 +302,443 @@ private fun EmptyContent(modifier: Modifier = Modifier) {
     }
 }
 
-/** Список сохранённых сессий: карточка + удаление с подтверждением. */
+/** Подсказка, когда поиск/фильтр не дал результатов. */
 @Composable
-private fun SessionList(
+private fun NothingFound() {
+    Text(
+        text = stringResource(R.string.nothing_found),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+    )
+}
+
+/**
+ * Содержимое главного экрана: поиск/сортировка, чипы фильтра, карточка
+ * честного розыгрыша и список сессий. Долгое нажатие на карточку открывает
+ * меню действий.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeContent(
     state: HomeUiState,
     contentPadding: PaddingValues,
     onOpenSession: (String) -> Unit,
     onDeleteRequest: (Session) -> Unit,
+    onDuplicate: (Session) -> Unit,
+    onToggleFavorite: (Session) -> Unit,
+    onToggleArchived: (Session) -> Unit,
+    onEditTags: (Session) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onFilterChange: (SessionFilter) -> Unit,
+    onSortChange: (SessionSort) -> Unit,
+    onHonestNumber: () -> Unit,
+    onHonestList: () -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
+    val texts = LocalSessionTexts.current
+    var menuSessionId by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item {
+            SearchAndSortRow(
+                query = state.query,
+                sort = state.sort,
+                onQueryChange = onQueryChange,
+                onSortChange = onSortChange,
+            )
+        }
+        item {
+            FilterChipsRow(filter = state.filter, onFilterChange = onFilterChange)
+        }
+        item {
+            HonestDrawCard(onNumber = onHonestNumber, onList = onHonestList)
+        }
+
+        if (state.sessions.isEmpty() && !state.isLoading) {
+            item { if (state.hasActiveSearch) NothingFound() else EmptyContent() }
+            item { Spacer(Modifier.height(72.dp)) }
+            return@LazyColumn
+        }
+
         items(state.sessions, key = { it.id }) { session ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                onClick = { onOpenSession(session.id) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = session.title,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        val progress = if (session.allowRepeats) {
-                            stringResource(
-                                R.string.session_generated_count,
-                                session.generated.size,
-                            )
-                        } else {
-                            stringResource(
-                                R.string.session_progress,
-                                session.pickedCount,
-                                session.rangeSize,
-                            )
-                        }
-                        Text(
-                            text = progress,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = formatTimestamp(session.lastUsedAt, locale),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = { onDeleteRequest(session) }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.delete),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+            SessionCard(
+                session = session,
+                locale = locale,
+                menuOpen = menuSessionId == session.id,
+                onOpen = { onOpenSession(session.id) },
+                onOpenMenu = { menuSessionId = session.id },
+                onDismissMenu = { menuSessionId = null },
+                onDuplicate = { onDuplicate(session) },
+                onToggleFavorite = { onToggleFavorite(session) },
+                onToggleArchived = { onToggleArchived(session) },
+                onEditTags = { onEditTags(session) },
+                onDeleteRequest = { onDeleteRequest(session) },
+                onTagClick = { onQueryChange(it) },
+                title = texts.title(session),
+            )
         }
         item { Spacer(Modifier.height(72.dp)) } // место под FAB
     }
+}
+
+/** Поиск по заголовку/тегам + выбор сортировки. */
+@Composable
+private fun SearchAndSortRow(
+    query: String,
+    sort: SessionSort,
+    onQueryChange: (String) -> Unit,
+    onSortChange: (SessionSort) -> Unit,
+) {
+    var sortMenuOpen by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text(stringResource(R.string.search_hint)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        Box {
+            TextButton(onClick = { sortMenuOpen = true }) {
+                Text(stringResource(sort.labelRes()))
+            }
+            DropdownMenu(
+                expanded = sortMenuOpen,
+                onDismissRequest = { sortMenuOpen = false },
+            ) {
+                SessionSort.entries.forEach { candidate ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(candidate.labelRes())) },
+                        onClick = {
+                            sortMenuOpen = false
+                            onSortChange(candidate)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Чипы фильтра списка: все / избранное / архив. */
+@Composable
+private fun FilterChipsRow(
+    filter: SessionFilter,
+    onFilterChange: (SessionFilter) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SessionFilter.entries.forEach { candidate ->
+            FilterChip(
+                selected = filter == candidate,
+                onClick = { onFilterChange(candidate) },
+                label = { Text(stringResource(candidate.labelRes())) },
+            )
+        }
+    }
+}
+
+/** Карточка одной сессии: заголовок, прогресс, теги и действия. */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun SessionCard(
+    session: Session,
+    locale: Locale,
+    menuOpen: Boolean,
+    title: String,
+    onOpen: () -> Unit,
+    onOpenMenu: () -> Unit,
+    onDismissMenu: () -> Unit,
+    onDuplicate: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onToggleArchived: () -> Unit,
+    onEditTags: () -> Unit,
+    onDeleteRequest: () -> Unit,
+    onTagClick: (String) -> Unit,
+) {
+    val duplicateLabel = stringResource(R.string.duplicate)
+    val deleteLabel = stringResource(R.string.delete)
+    val favoriteLabel = stringResource(
+        if (session.isFavorite) R.string.remove_from_favorites else R.string.add_to_favorites,
+    )
+    val archivedLabel = stringResource(
+        if (session.isArchived) R.string.unarchive else R.string.archive,
+    )
+    val tagsLabel = stringResource(R.string.tags_title)
+
+    Box {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = onOpenMenu,
+                    onLongClickLabel = duplicateLabel,
+                ),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    val progress = if (session.allowRepeats) {
+                        stringResource(R.string.session_generated_count, session.generated.size)
+                    } else {
+                        stringResource(R.string.session_progress, session.pickedCount, session.rangeSize)
+                    }
+                    Text(
+                        text = progress,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (session.tags.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            session.tags.forEach { tag ->
+                                AssistChip(
+                                    onClick = { onTagClick(tag) },
+                                    label = { Text(tag) },
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = formatTimestamp(session.lastUsedAt, locale),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        imageVector = if (session.isFavorite) {
+                            Icons.Default.Star
+                        } else {
+                            Icons.Default.FavoriteBorder
+                        },
+                        contentDescription = favoriteLabel,
+                        tint = if (session.isFavorite) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+                IconButton(onClick = onDeleteRequest) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = deleteLabel,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = onDismissMenu) {
+            DropdownMenuItem(text = { Text(duplicateLabel) }, onClick = onDuplicate)
+            DropdownMenuItem(text = { Text(favoriteLabel) }, onClick = onToggleFavorite)
+            DropdownMenuItem(text = { Text(archivedLabel) }, onClick = onToggleArchived)
+            DropdownMenuItem(text = { Text(tagsLabel) }, onClick = onEditTags)
+            DropdownMenuItem(text = { Text(deleteLabel) }, onClick = onDeleteRequest)
+        }
+    }
+}
+
+/** Локализованное название фильтра. */
+private fun SessionFilter.labelRes(): Int = when (this) {
+    SessionFilter.ALL -> R.string.filter_all
+    SessionFilter.FAVORITES -> R.string.filter_favorites
+    SessionFilter.ARCHIVE -> R.string.filter_archive
+}
+
+/** Локализованное название сортировки. */
+private fun SessionSort.labelRes(): Int = when (this) {
+    SessionSort.DATE -> R.string.sort_date
+    SessionSort.TITLE -> R.string.sort_title
+    SessionSort.PROGRESS -> R.string.sort_progress
+}
+
+/**
+ * Карточка «Честный розыгрыш»: две кнопки — число 1–100 и розыгрыш
+ * из введённого списка. Результат создаётся сразу и уходит в share-sheet
+ * вместе с seed и источником (раздел 6).
+ */
+@Composable
+private fun HonestDrawCard(
+    onNumber: () -> Unit,
+    onList: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.honest_draw_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.honest_draw_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onNumber,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.honest_draw_number))
+                }
+                OutlinedButton(
+                    onClick = onList,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.honest_draw_list))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Диалог ввода участников честного розыгрыша.
+ *
+ * Список парсится построчно: пустые строки и дубликаты отбрасываются;
+ * для розыгрыша нужно минимум два участника.
+ */
+@Composable
+private fun HonestDrawListDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    val items = remember(text) {
+        text.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .toList()
+    }
+    val notEnough = text.isNotBlank() && items.size < 2
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.honest_draw_list_title)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text(stringResource(R.string.honest_draw_list_label)) },
+                supportingText = {
+                    val hintRes = if (notEnough) {
+                        R.string.honest_draw_list_min
+                    } else {
+                        R.string.honest_draw_list_hint
+                    }
+                    Text(stringResource(hintRes))
+                },
+                isError = notEnough,
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(items) },
+                enabled = items.size >= 2,
+            ) {
+                Text(stringResource(R.string.honest_draw_start))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+/** Диалог редактирования тегов сессии (3.5). */
+@Composable
+private fun TagsDialog(
+    initial: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    var text by remember { mutableStateOf(initial.joinToString(", ")) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tags_title)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text(stringResource(R.string.tags_label)) },
+                supportingText = { Text(stringResource(R.string.tags_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(
+                        text.split(',')
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() },
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 /**
