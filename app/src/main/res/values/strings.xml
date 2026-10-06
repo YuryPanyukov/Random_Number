@@ -37,6 +37,16 @@
     <string name="save">Сохранить</string>
 
     <!-- Экран сессии -->
+    <string name="session_description_hint">Заметка (не влияет на генерацию)</string>
+    <string name="edit_session">Редактировать сессию</string>
+    <string name="edit_title">Название</string>
+    <string name="edit_range_from">От</string>
+    <string name="edit_range_to">До</string>
+    <string name="edit_allow_repeats">Разрешить повторы</string>
+    <string name="edit_items_label">Элементы (по одному в строке)</string>
+    <string name="edit_dice_count">Сколько кубиков</string>
+    <string name="edit_dice_sides">Сколько граней</string>
+    <string name="edit_save">Сохранить</string>
     <string name="generation">Генерация</string>
     <string name="last_number">Последнее число</string>
     <string name="last_result">Последний результат</string>

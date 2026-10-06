@@ -72,6 +72,24 @@ data class SessionUiState(
     /** Статистика по текущей истории (пустая, если история пуста). */
     val stats: SessionStats = SessionStats.EMPTY,
     val isLoading: Boolean = true,
+    /** Показывать диалог редактирования сессии (3.2). */
+    val showEditDialog: Boolean = false,
+    /** Текст названия в диалоге редактирования. */
+    val editTitleText: String = "",
+    /** Текст заметки в диалоге редактирования. */
+    val editDescriptionText: String = "",
+    /** Текст диапазона «от» в диалоге редактирования (режим чисел). */
+    val editMinText: String = "",
+    /** Текст диапазона «до» в диалоге редактирования (режим чисел). */
+    val editMaxText: String = "",
+    /** Флаг «разрешить повторы» в диалоге редактирования. */
+    val editAllowRepeats: Boolean = false,
+    /** Текст элементов в диалоге редактирования (режим списка/перемешивания). */
+    val editItemsText: String = "",
+    /** Текст «сколько кубиков» в диалоге редактирования (режим кубиков). */
+    val editDiceCountText: String = "",
+    /** Текст «сколько граней» в диалоге редактирования (режим кубиков). */
+    val editDiceSidesText: String = "",
 )
 
 /**
@@ -137,7 +155,17 @@ class SessionViewModel(
         }
     }
 
-    /** Меняет количество чисел, генерируемых за одно нажатие (≥ 1). */
+    /**
+     * Меняет количество чисел, генерируемых за одно нажатие (≥ 1).
+     *
+     * Меняет состояние напрямую (мимо очереди операций) — безопасно,
+     * так как это чистый UI-флаг, не влияющий на данные сессии.
+     *
+     * Соглашение: мимо очереди можно менять только чистые UI-флаги
+     * (`batchSize`, `showStats`, `showExhaustedDialog`), которые не
+     * мутруют данные сессии и не требуют атомарности с другими операциями.
+     * Любая логика, затрагивающая `Session`, должна идти через `enqueue`.
+     */
     fun setBatchSize(count: Int) {
         _uiState.update { it.copy(batchSize = count.coerceAtLeast(1)) }
     }
@@ -341,7 +369,12 @@ class SessionViewModel(
         }
     }
 
-    /** Показывает/скрывает блок статистики. */
+    /**
+     * Показывает/скрывает блок статистики.
+     *
+     * Меняет состояние напрямую (мимо очереди) — чистый UI-флаг.
+     * См. соглашение в [setBatchSize].
+     */
     fun toggleStats() {
         _uiState.update { it.copy(showStats = !it.showStats) }
     }
@@ -376,7 +409,12 @@ class SessionViewModel(
         this
     }
 
-    /** Закрывает диалог «Все числа выбраны» (продолжить как есть). */
+    /**
+     * Закрывает диалог «Все числа выбраны» (продолжить как есть).
+     *
+     * Меняет состояние напрямую (мимо очереди) — чистый UI-флаг.
+     * См. соглашение в [setBatchSize].
+     */
     fun dismissExhaustedDialog() {
         _uiState.update { it.copy(showExhaustedDialog = false) }
     }
@@ -453,5 +491,99 @@ class SessionViewModel(
     /** Ставит операцию в очередь; её результат попадёт в [uiState]. */
     private fun enqueue(operation: suspend SessionUiState.() -> SessionUiState) {
         operations.trySend(operation)
+    }
+
+    /**
+     * Открывает диалог редактирования сессии (3.2).
+     *
+     * Мимо очереди: только заполнение UI-полей, не мутует данные.
+     */
+    fun showEditDialog() {
+        val session = uiState.value.session ?: return
+        _uiState.update {
+            it.copy(
+                showEditDialog = true,
+                editTitleText = session.title,
+                editDescriptionText = session.description,
+                editAllowRepeats = session.allowRepeats,
+                editItemsText = session.items.joinToString("\n"),
+                editDiceCountText = (session.payload as? SessionPayload.Dice)?.count.toString(),
+                editDiceSidesText = (session.payload as? SessionPayload.Dice)?.sides.toString(),
+            ).let { state ->
+                val p = session.payload
+                when {
+                    p is SessionPayload.Numbers ->
+                        state.copy(
+                            editMinText = p.min.toString(),
+                            editMaxText = p.max.toString(),
+                        )
+
+                    p is SessionPayload.Dice -> state
+
+                    else -> state
+                }
+            }
+        }
+    }
+
+    /** Закрывает диалог редактирования без сохранения. */
+    fun hideEditDialog() {
+        _uiState.update { it.copy(showEditDialog = false) }
+    }
+
+    /** Сохраняет изменения из диалога редактирования (3.2). */
+    fun saveEdit() {
+        val session = uiState.value.session ?: return
+        val state = uiState.value
+        val title = state.editTitleText.trim().takeIf { it.isNotEmpty() } ?: session.title
+        val description = state.editDescriptionText
+        val updated = session.withTitle(title).withDescription(description)
+
+        val p = session.payload
+        val final = when (p) {
+            is SessionPayload.Numbers -> {
+                val min = state.editMinText.toIntOrNull() ?: p.min
+                val max = state.editMaxText.toIntOrNull() ?: p.max
+                if (min <= max) updated.withNumbersRange(min, max, state.editAllowRepeats)
+                else updated
+            }
+
+            is SessionPayload.Items, is SessionPayload.Shuffle -> {
+                val items = state.editItemsText.lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+                    .toList()
+                if (items.isNotEmpty()) updated.withItems(items, state.editAllowRepeats)
+                else updated
+            }
+
+            is SessionPayload.Dice -> {
+                val count = state.editDiceCountText.toIntOrNull()?.coerceAtLeast(1) ?: p.count
+                val sides = state.editDiceSidesText.toIntOrNull()?.coerceAtLeast(2) ?: p.sides
+                updated.copy(payload = SessionPayload.Dice(count, sides))
+            }
+
+            is SessionPayload.Coin -> updated
+        }
+
+        viewModelScope.launch {
+            repository.update(final)
+        }
+        hideEditDialog()
+    }
+
+    /**
+     * Сохраняет заметку к сессии (3.4).
+     *
+     * Мимо очереди: заметка — чистый текст, не влияет на генерацию.
+     * См. соглашение в [setBatchSize].
+     */
+    fun setDescription(description: String) {
+        val session = uiState.value.session ?: return
+        val updated = session.withDescription(description)
+        viewModelScope.launch {
+            repository.update(updated)
+        }
     }
 }

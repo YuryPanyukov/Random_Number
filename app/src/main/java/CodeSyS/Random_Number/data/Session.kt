@@ -33,6 +33,7 @@ data class GeneratedEntry(
  *
  * @param id уникальный идентификатор сессии.
  * @param title человекочитаемое имя (например, «1..100, без повторов»).
+ * @param description заметка/описание сессии (не используется в логике).
  * @param payload параметры режима генерации.
  * @param log журнал выдачи с таймстампами.
  * @param createdAt время создания сессии (epoch millis).
@@ -51,6 +52,7 @@ data class GeneratedEntry(
 data class Session(
     val id: String,
     val title: String,
+    val description: String = "",
     val payload: SessionPayload,
     val log: List<GeneratedEntry> = emptyList(),
     val createdAt: Long = 0L,
@@ -70,6 +72,7 @@ data class Session(
     constructor(
         id: String,
         title: String,
+        description: String = "",
         min: Int,
         max: Int,
         allowRepeats: Boolean,
@@ -84,6 +87,7 @@ data class Session(
     ) : this(
         id = id,
         title = title,
+        description = description,
         payload = SessionPayload.Numbers(min = min, max = max, allowRepeats = allowRepeats),
         log = log,
         createdAt = createdAt,
@@ -346,6 +350,7 @@ data class Session(
      */
     fun duplicate(now: Long, id: String = UUID.randomUUID().toString()): Session = copy(
         id = id,
+        description = description,
         log = emptyList(),
         createdAt = now,
         lastUsedAt = now,
@@ -368,6 +373,46 @@ data class Session(
         tags = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
     )
 
+    /** Возвращает копию сессии с заметкой [description]. */
+    fun withDescription(description: String): Session = copy(description = description)
+
+    /**
+     * Возвращает копию сессии с новым названием [title].
+     */
+    fun withTitle(title: String): Session = copy(title = title)
+
+    /**
+     * Возвращает копию сессии с обновлённым диапазоном (только для режима чисел).
+     *
+     * @throws IllegalArgumentException если сессия не в режиме чисел.
+     */
+    fun withNumbersRange(min: Int, max: Int, allowRepeats: Boolean): Session {
+        require(payload is SessionPayload.Numbers) {
+            "withNumbersRange доступен только для режима чисел"
+        }
+        return copy(
+            payload = SessionPayload.Numbers(min = min, max = max, allowRepeats = allowRepeats),
+        )
+    }
+
+    /**
+     * Возвращает копию сессии с обновлённым списком элементов
+     * (режимы [SessionPayload.Items] и [SessionPayload.Shuffle]).
+     *
+     * @throws IllegalArgumentException если сессия не в режиме списка/перемешивания.
+     */
+    fun withItems(newItems: List<String>, allowRepeats: Boolean): Session {
+        require(payload is SessionPayload.Items || payload is SessionPayload.Shuffle) {
+            "withItems доступен только для режимов списка/перемешивания"
+        }
+        val newPayload = when (val p = payload) {
+            is SessionPayload.Items -> p.copy(items = newItems, allowRepeats = allowRepeats)
+            is SessionPayload.Shuffle -> p.copy(items = newItems)
+            else -> error("Недостижимо")
+        }
+        return copy(payload = newPayload)
+    }
+
     companion object {
 
         /** Разделитель элементов перестановки в [lastDisplay]. */
@@ -386,9 +431,11 @@ data class Session(
             title: String = "$min..$max" + if (allowRepeats) "" else ", без повторов",
             seed: Long? = null,
             seedFromSecure: Boolean = false,
+            description: String = "",
         ): Session = Session(
             id = UUID.randomUUID().toString(),
             title = title,
+            description = description,
             min = min,
             max = max,
             allowRepeats = allowRepeats,
@@ -411,9 +458,11 @@ data class Session(
             title: String = payload.toString(),
             seed: Long? = null,
             seedFromSecure: Boolean = false,
+            description: String = "",
         ): Session = Session(
             id = UUID.randomUUID().toString(),
             title = title,
+            description = description,
             payload = payload,
             log = emptyList(),
             createdAt = now,

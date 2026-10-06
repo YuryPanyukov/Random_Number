@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -141,6 +144,14 @@ fun SessionScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = viewModel::showEditDialog) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.edit_session),
+                        )
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -160,8 +171,25 @@ fun SessionScreen(
             },
             onToggleStats = viewModel::toggleStats,
             onSetSeed = viewModel::setSeed,
+            onDescriptionChange = viewModel::setDescription,
             onSaveHistory = { format -> viewModel.exportHistory(format, share = false) },
             onShareHistory = { format -> viewModel.exportHistory(format, share = true) },
+        )
+    }
+
+    if (state.showEditDialog) {
+        EditSessionDialog(
+            state = state,
+            onTitleChange = { _ -> /* handled internally */ },
+            onDescriptionChange = viewModel::setDescription,
+            onMinChange = { _ -> /* handled internally */ },
+            onMaxChange = { _ -> /* handled internally */ },
+            onAllowRepeatsChange = { _ -> /* handled internally */ },
+            onItemsChange = { _ -> /* handled internally */ },
+            onDiceCountChange = { _ -> /* handled internally */ },
+            onDiceSidesChange = { _ -> /* handled internally */ },
+            onSave = viewModel::saveEdit,
+            onDismiss = viewModel::hideEditDialog,
         )
     }
 
@@ -195,6 +223,7 @@ private fun SessionContent(
     onSetSeed: (Long?) -> Unit,
     onSaveHistory: (HistoryExporter.Format) -> Unit,
     onShareHistory: (HistoryExporter.Format) -> Unit,
+    onDescriptionChange: (String) -> Unit,
 ) {
     val session = state.session
     val texts = LocalSessionTexts.current
@@ -214,6 +243,39 @@ private fun SessionContent(
                 style = MaterialTheme.typography.bodyLarge,
             )
             return
+        }
+
+        // Заметка к сессии (3.4)
+        var descriptionVisible by remember { mutableStateOf(session.description.isNotEmpty()) }
+        var descriptionText by remember { mutableStateOf(session.description) }
+        if (descriptionVisible) {
+            OutlinedTextField(
+                value = descriptionText,
+                onValueChange = {
+                    descriptionText = it
+                    onDescriptionChange(it)
+                },
+                label = { Text(stringResource(R.string.session_description_hint)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                minLines = 1,
+                maxLines = 3,
+                trailingIcon = {
+                    IconButton(onClick = { descriptionVisible = false }) {
+                        Text("✕", style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+            )
+        } else if (session.description.isNotEmpty()) {
+            Text(
+                text = session.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            )
         }
 
         // Крупное последнее значение (число или элемент; долгое нажатие → «Копировать»)
@@ -828,6 +890,169 @@ private fun ExhaustedDialog(
     )
 }
 
+/** Диалог редактирования сессии (3.2). */
+@Composable
+private fun EditSessionDialog(
+    state: SessionUiState,
+    onTitleChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onMinChange: (String) -> Unit,
+    onMaxChange: (String) -> Unit,
+    onAllowRepeatsChange: (Boolean) -> Unit,
+    onItemsChange: (String) -> Unit,
+    onDiceCountChange: (String) -> Unit,
+    onDiceSidesChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val session = state.session ?: return
+    var titleText by remember { mutableStateOf(state.editTitleText) }
+    var descriptionText by remember { mutableStateOf(state.editDescriptionText) }
+    var minText by remember { mutableStateOf(state.editMinText) }
+    var maxText by remember { mutableStateOf(state.editMaxText) }
+    var allowRepeats by remember { mutableStateOf(state.editAllowRepeats) }
+    var itemsText by remember { mutableStateOf(state.editItemsText) }
+    var diceCountText by remember { mutableStateOf(state.editDiceCountText) }
+    var diceSidesText by remember { mutableStateOf(state.editDiceSidesText) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_session)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Название
+                OutlinedTextField(
+                    value = titleText,
+                    onValueChange = {
+                        titleText = it
+                        onTitleChange(it)
+                    },
+                    label = { Text(stringResource(R.string.edit_title)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+
+                // Заметка
+                OutlinedTextField(
+                    value = descriptionText,
+                    onValueChange = {
+                        descriptionText = it
+                        onDescriptionChange(it)
+                    },
+                    label = { Text(stringResource(R.string.session_description_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 1,
+                    maxLines = 3,
+                )
+
+                // Режим чисел: диапазон
+                if (session.isNumbersMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = minText,
+                            onValueChange = {
+                                minText = it
+                                onMinChange(it)
+                            },
+                            label = { Text(stringResource(R.string.edit_range_from)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = maxText,
+                            onValueChange = {
+                                maxText = it
+                                onMaxChange(it)
+                            },
+                            label = { Text(stringResource(R.string.edit_range_to)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.edit_allow_repeats),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = allowRepeats,
+                            onCheckedChange = { enabled ->
+                                allowRepeats = enabled
+                                onAllowRepeatsChange(enabled)
+                            },
+                        )
+                    }
+                }
+
+                // Режим списка/перемешивания: элементы
+                if (session.isItemsMode || session.isShuffleMode) {
+                    OutlinedTextField(
+                        value = itemsText,
+                        onValueChange = {
+                            itemsText = it
+                            onItemsChange(it)
+                        },
+                        label = { Text(stringResource(R.string.edit_items_label)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                }
+
+                // Режим кубиков
+                if (session.isDiceMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = diceCountText,
+                            onValueChange = {
+                                diceCountText = it
+                                onDiceCountChange(it)
+                            },
+                            label = { Text(stringResource(R.string.edit_dice_count)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = diceSidesText,
+                            onValueChange = {
+                                diceSidesText = it
+                                onDiceSidesChange(it)
+                            },
+                            label = { Text(stringResource(R.string.edit_dice_sides)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave) { Text(stringResource(R.string.edit_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun SessionScreenPreview() {
@@ -846,6 +1071,7 @@ private fun SessionScreenPreview() {
             onShare = {},
             onToggleStats = {},
             onSetSeed = {},
+            onDescriptionChange = {},
             onSaveHistory = {},
             onShareHistory = {},
         )
