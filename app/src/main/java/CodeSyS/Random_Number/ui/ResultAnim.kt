@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -71,16 +74,22 @@ import kotlinx.coroutines.delay
  * и сбросе истории.
  */
 
-/** Как часто токен показывает новую грань во время прокрутки. */
+/** Как часто кубик показывает новую грань во время прокрутки. */
 private const val CYCLE_MILLIS = 70
 
 /** Сколько случайных граней показывается до установки итога. */
 private const val CYCLES = 7
 
+/** Полуоборот монеты: сжатие к ребру и раскрытие уже на другой стороне. */
+private const val COIN_HALF_TURN_MILLIS = 60
+
+/** Число полуоборотов монеты при броске (три полных оборота). */
+private const val COIN_HALF_TURNS = 6
+
 /** Сдвиг старта для токена с номером [index] в наборе (не бесконечный). */
 private fun staggerMillis(index: Int): Int = (index * 60).coerceAtMost(420)
 
-/** Максимальный угол наклона токена во время прокрутки. */
+/** Максимальный угол наклона кубика во время прокрутки. */
 private const val ROLL_TILT_DEGREES = 14f
 
 /**
@@ -300,7 +309,28 @@ private fun AnimatedResultText(
     }
 }
 
-/** Монета: круг с первой буквой стороны (О/Р; в английской локали H/T). */
+/**
+ * Бросок монеты: поочерёдные полуобороты — монета сжимается к ребру
+ * и раскрывается уже с другой стороны, смена стороны происходит в момент
+ * ребра, поэтому буква никогда не видна зеркально.
+ */
+private suspend fun runCoinFlip(
+    scaleX: Animatable<Float, *>,
+    initialOffsetMillis: Long,
+    onEdge: (half: Int) -> Unit,
+) {
+    delay(initialOffsetMillis)
+    repeat(COIN_HALF_TURNS) { half ->
+        scaleX.animateTo(0f, tween(COIN_HALF_TURN_MILLIS))
+        onEdge(half)
+        scaleX.animateTo(1f, tween(COIN_HALF_TURN_MILLIS))
+    }
+}
+
+/**
+ * Монета: круг с первой буквой стороны (О/Р; в английской локали H/T).
+ * Бросок — перевороты через ребро со сменой стороны, затем упругая установка.
+ */
 @Composable
 private fun CoinToken(
     target: CoinSide,
@@ -310,19 +340,24 @@ private fun CoinToken(
     size: Dp,
 ) {
     var face by remember { mutableIntStateOf(target.ordinal) }
-    val rotation = remember { Animatable(0f) }
-    val scale = remember { Animatable(1f) }
-    val settleDelay = staggerMillis(index) + (CYCLES + 1) * CYCLE_MILLIS / 2
+    // Сжатие монеты к ребру при полуобороте (scaleX).
+    val flip = remember { Animatable(1f) }
+    // Упругая установка после остановки.
+    val settle = remember { Animatable(1f) }
+    val settleDelay = staggerMillis(index).toLong() + COIN_HALF_TURNS * 2L * COIN_HALF_TURN_MILLIS
 
     LaunchedEffect(nonce) {
-        runRoll(rotation, staggerMillis(index).toLong()) {
-            face = Random.nextInt(CoinSide.entries.size)
+        runCoinFlip(flip, staggerMillis(index).toLong()) { half ->
+            face = if (half == COIN_HALF_TURNS - 1) {
+                target.ordinal
+            } else {
+                Random.nextInt(CoinSide.entries.size)
+            }
         }
-        face = target.ordinal
     }
     LaunchedEffect(nonce) {
-        delay(settleDelay.toLong())
-        scale.settle()
+        delay(settleDelay)
+        settle.settle()
     }
 
     val faceText = CoinSide.of(face).label.take(1)
@@ -332,9 +367,8 @@ private fun CoinToken(
         modifier = Modifier
             .size(size)
             .graphicsLayer {
-                rotationZ = rotation.value
-                scaleX = scale.value
-                scaleY = scale.value
+                scaleX = flip.value * settle.value
+                scaleY = settle.value
             }
             .semantics { contentDescription = fullLabel }
             .clip(shape)
@@ -357,11 +391,12 @@ private fun CoinToken(
                 MaterialTheme.typography.headlineMedium
             },
             color = MaterialTheme.colorScheme.onPrimary,
+            maxLines = 1,
         )
     }
 }
 
-/** Кубик: скруглённый квадрат с числом граней 1..[faces]. */
+/** Кубик: скруглённый квадрат с пипсами (1..6) или числом граней (d8 и выше). */
 @Composable
 private fun DiceToken(
     target: Int,
@@ -375,10 +410,11 @@ private fun DiceToken(
     val rotation = remember { Animatable(0f) }
     val scale = remember { Animatable(1f) }
     val settleDelay = staggerMillis(index) + (CYCLES + 1) * CYCLE_MILLIS / 2
+    val hasPips = faces <= PIP_DICE_MAX_FACES
 
     LaunchedEffect(nonce) {
         runRoll(rotation, staggerMillis(index).toLong()) {
-            faceValue = Random.nextInt(1, faces + 1)
+            faceValue = Random.nextInt(1, (if (hasPips) PIP_DICE_MAX_FACES else faces) + 1)
         }
         faceValue = target
     }
@@ -402,15 +438,68 @@ private fun DiceToken(
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = faceValue.toString(),
-            style = if (size >= 60.dp) {
-                MaterialTheme.typography.headlineLarge
-            } else {
-                MaterialTheme.typography.headlineSmall
-            },
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        if (hasPips) {
+            DicePips(
+                value = faceValue,
+                pipColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(
+                text = faceValue.toString(),
+                style = if (size >= 60.dp) {
+                    MaterialTheme.typography.headlineLarge
+                } else {
+                    MaterialTheme.typography.headlineSmall
+                },
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+/** У кубиков с числом граней не выше этого показываются пипсы, выше — цифры. */
+private const val PIP_DICE_MAX_FACES = 6
+
+/** Классические пипсы кубика: доли стороны квадрата для каждой грани 1..6. */
+private fun pipsFor(value: Int): List<Pair<Float, Float>> = when (value) {
+    1 -> listOf(0.5f to 0.5f)
+    2 -> listOf(0.28f to 0.28f, 0.72f to 0.72f)
+    3 -> listOf(0.28f to 0.28f, 0.5f to 0.5f, 0.72f to 0.72f)
+    4 -> listOf(
+        0.28f to 0.28f, 0.72f to 0.28f,
+        0.28f to 0.72f, 0.72f to 0.72f,
+    )
+
+    5 -> listOf(
+        0.28f to 0.28f, 0.72f to 0.28f,
+        0.5f to 0.5f,
+        0.28f to 0.72f, 0.72f to 0.72f,
+    )
+
+    else -> listOf(
+        0.28f to 0.28f, 0.72f to 0.28f,
+        0.28f to 0.5f, 0.72f to 0.5f,
+        0.28f to 0.72f, 0.72f to 0.72f,
+    )
+}
+
+/** Грань кубика точками-пипсами (классический вид для 1..6). */
+@Composable
+private fun DicePips(
+    value: Int,
+    pipColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension * 0.08f
+        pipsFor(value).forEach { (fx, fy) ->
+            drawCircle(
+                color = pipColor,
+                radius = radius,
+                center = Offset(fx * size.width, fy * size.height),
+            )
+        }
     }
 }
 
