@@ -66,6 +66,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric: композаблы тестируются без эмулятора.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -86,6 +93,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    // Compose test rule доступен и на Robolectric (unit-тесты без эмулятора).
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
