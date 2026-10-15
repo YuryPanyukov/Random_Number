@@ -137,6 +137,7 @@
     <string name="shuffle_label">Элементы для перемешивания (по одному в строке)</string>
     <string name="shuffle_hint">Нужно минимум два элемента; каждое нажатие даёт новую перестановку</string>
     <string name="dice_count">Сколько кубиков</string>
+    <string name="dice_token_desc">Кубик</string>
     <string name="dice_sides">Сколько граней</string>
     <string name="coin_hint">Монета бросается повторно; результат — орёл или решка</string>
     <string name="coin_stats">Орёл: %1$d · Решка: %2$d</string>

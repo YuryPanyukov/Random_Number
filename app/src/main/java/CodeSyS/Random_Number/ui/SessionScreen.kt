@@ -3,6 +3,8 @@ package CodeSyS.Random_Number.ui
 import CodeSyS.Random_Number.R
 import CodeSyS.Random_Number.data.HistoryExporter
 import CodeSyS.Random_Number.data.Session
+import CodeSyS.Random_Number.data.SessionPayload
+import CodeSyS.Random_Number.domain.CoinSide
 import CodeSyS.Random_Number.domain.DiceRoll
 import CodeSyS.Random_Number.ui.session.SessionEvent
 import CodeSyS.Random_Number.ui.session.SessionUiState
@@ -278,11 +280,32 @@ private fun SessionContent(
             )
         }
 
-        // Крупное последнее значение (число или элемент; долгое нажатие → «Копировать»)
-        BigNumberCard(
-            value = state.lastDisplay ?: "—",
-            onCopy = onCopy,
-        )
+        // Крупный результат режима с знанием: монеты — монеты, у
+        // кубиков — ряд кубиков; иначе крупное число (долгота: копирование)
+        when {
+            session.isCoinMode && state.lastDisplay != null -> {
+                CoinResultCard(
+                    sides = session.generated.takeLast(state.batchSize).map { CoinSide.of(it) },
+                    nonce = session.generatedCount,
+                    sideLabel = { side -> texts.coinSide(side) },
+                    onCopy = onCopy,
+                )
+            }
+
+            session.isDiceMode && session.lastDiceRoll != null -> {
+                DiceResultCard(
+                    values = session.lastDiceRoll!!,
+                    diceFaces = (session.payload as SessionPayload.Dice).sides,
+                    nonce = session.generatedCount,
+                    onCopy = onCopy,
+                )
+            }
+
+            else -> BigNumberCard(
+                value = state.lastDisplay ?: "—",
+                onCopy = onCopy,
+            )
+        }
 
         // Сообщение о частичном батче: просили больше, чем осталось в диапазоне.
         if (state.lastBatchPartial) {

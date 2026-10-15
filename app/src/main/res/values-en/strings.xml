@@ -135,6 +135,7 @@
     <string name="shuffle_label">Items to shuffle (one per line)</string>
     <string name="shuffle_hint">At least two items are required; each tap gives a new order</string>
     <string name="dice_count">Number of dice</string>
+    <string name="dice_token_desc">Die</string>
     <string name="dice_sides">Sides per die</string>
     <string name="coin_hint">The coin is flipped repeatedly; the result is heads or tails</string>
     <string name="coin_stats">Heads: %1$d · Tails: %2$d</string>
