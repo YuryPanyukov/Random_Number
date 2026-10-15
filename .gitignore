@@ -17,6 +17,9 @@ local.properties
 # Артефакты сборки
 /app/build/
 /app/release/
+# Ключи подписи релиза — только локально (см. keystore.properties.example)
+/keystore.properties
+/keystore
 *.aab
 *.apk
 
