@@ -1,16 +1,20 @@
 package CodeSyS.Random_Number.ui.newsession
 
+import CodeSyS.Random_Number.data.CustomPreset
 import CodeSyS.Random_Number.data.Session
 import CodeSyS.Random_Number.data.SessionPayload
 import CodeSyS.Random_Number.data.SessionRepository
+import CodeSyS.Random_Number.data.SettingsRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -128,15 +132,31 @@ data class NewSessionUiState(
  * @param clock источник времени — для детерминированных тестов.
  * @param initialMode режим, предвыбранный на экране выбора (2.6): форма
  * открывается сразу с нужными полями, без повторного переключения.
+ * @param settingsRepository настройки — для сохранённых пользователем
+ * пресетов; `null` отключает пресеты (в тестах).
  */
 class NewSessionViewModel(
     private val repository: SessionRepository,
     private val clock: () -> Long = System::currentTimeMillis,
     initialMode: NewSessionMode = NewSessionMode.NUMBERS,
+    private val settingsRepository: SettingsRepository? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NewSessionUiState(mode = initialMode))
     val uiState: StateFlow<NewSessionUiState> = _uiState.asStateFlow()
+
+    private val emptyPresets: MutableStateFlow<List<CustomPreset>> =
+        MutableStateFlow(emptyList())
+
+    /** Пользовательские пресеты (пустые, если хранилище недоступно). */
+    val customPresets: StateFlow<List<CustomPreset>> =
+        settingsRepository?.customPresets
+            ?.stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList(),
+            )
+            ?: emptyPresets.asStateFlow()
 
     private val _createdSessionId = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
@@ -178,6 +198,68 @@ class NewSessionViewModel(
     /** Применяет пресет диапазона одним тапом. */
     fun applyPreset(min: Int, max: Int, allowRepeats: Boolean) {
         _uiState.update { it.withPreset(min, max, allowRepeats) }
+    }
+
+    /** Применяет пользовательский пресет: числа или кубики. */
+    fun applyCustomPreset(preset: CustomPreset) {
+        when (preset.kind) {
+            CustomPreset.PresetKind.NUMBERS -> {
+                setMode(NewSessionMode.NUMBERS)
+                setMin(preset.min.toString())
+                setMax(preset.max.toString())
+                setWithoutRepeats(!preset.allowRepeats)
+            }
+
+            CustomPreset.PresetKind.DICE -> {
+                setMode(NewSessionMode.DICE)
+                setDiceCount(preset.diceCount.toString())
+                setDiceSides(preset.diceSides.toString())
+            }
+        }
+    }
+
+    /**
+     * Сохраняет текущий ввод как пользовательский пресет (числа или
+     * кубики — по активному режиму формы).
+     *
+     * @return `false`, если ввод некорректен или пресеты недоступны.
+     */
+    fun savePreset(): Boolean {
+        if (settingsRepository == null) return false
+        val state = _uiState.value
+        val preset = when (state.mode) {
+            NewSessionMode.NUMBERS -> {
+                val min = state.min ?: return false
+                val max = state.max ?: return false
+                if (min > max) return false
+                CustomPreset(
+                    kind = CustomPreset.PresetKind.NUMBERS,
+                    min = min,
+                    max = max,
+                    allowRepeats = !state.withoutRepeats,
+                )
+            }
+
+            NewSessionMode.DICE -> {
+                val count = state.diceCount ?: return false
+                val sides = state.diceSides ?: return false
+                if (count < 1 || sides < 2) return false
+                CustomPreset(
+                    kind = CustomPreset.PresetKind.DICE,
+                    diceCount = count,
+                    diceSides = sides,
+                )
+            }
+
+            else -> return false
+        }
+        viewModelScope.launch { settingsRepository.addCustomPreset(preset) }
+        return true
+    }
+
+    /** Удаляет пользовательский пресет по индексу списка. */
+    fun removePreset(index: Int) {
+        viewModelScope.launch { settingsRepository?.removeCustomPresetAt(index) }
     }
 
     /**

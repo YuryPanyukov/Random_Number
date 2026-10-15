@@ -143,6 +143,7 @@
     <string name="coin_stats">Орёл: %1$d · Решка: %2$d</string>
     <string name="histogram_title">Распределение</string>
     <string name="share_image">Картинка</string>
+    <string name="preset_save">Сохранить пресет</string>
     <string name="range_from">От</string>
     <string name="range_to">До</string>
     <string name="invalid_number">Введите целое число</string>

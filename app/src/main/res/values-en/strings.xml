@@ -141,6 +141,7 @@
     <string name="coin_stats">Heads: %1$d · Tails: %2$d</string>
     <string name="histogram_title">Distribution</string>
     <string name="share_image">Picture</string>
+    <string name="preset_save">Save as preset</string>
     <string name="range_from">From</string>
     <string name="range_to">To</string>
     <string name="invalid_number">Enter an integer</string>

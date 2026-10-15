@@ -43,6 +43,8 @@ fun newSessionViewModelFactory(mode: NewSessionMode) = viewModelFactory {
         NewSessionViewModel(
             repository = appContainer().container.sessionRepository,
             initialMode = mode,
+            // Сохранённые пресеты из настроек.
+            settingsRepository = appContainer().container.settingsRepository,
         )
     }
 }

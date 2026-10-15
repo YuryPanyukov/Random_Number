@@ -1,11 +1,15 @@
 package CodeSyS.Random_Number.ui
 
 import CodeSyS.Random_Number.R
+import CodeSyS.Random_Number.data.CustomPreset
 import CodeSyS.Random_Number.domain.RangePreset
 import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionUiState
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -79,6 +84,8 @@ fun NewSessionScreen(
             )
         },
     ) { innerPadding ->
+        val customPresets by viewModel.customPresets.collectAsState()
+
         NewSessionForm(
             state = state,
             contentPadding = innerPadding,
@@ -90,6 +97,10 @@ fun NewSessionScreen(
             onDiceSidesChange = viewModel::setDiceSides,
             onWithoutRepeatsChange = viewModel::setWithoutRepeats,
             onPreset = viewModel::applyPreset,
+            customPresets = customPresets,
+            onCustomPreset = viewModel::applyCustomPreset,
+            onCustomPresetRemove = viewModel::removePreset,
+            onSavePreset = viewModel::savePreset,
             onCreate = {
                 if (viewModel.createSession()) onCreated()
             },
@@ -111,6 +122,10 @@ private fun NewSessionForm(
     onDiceSidesChange: (String) -> Unit,
     onWithoutRepeatsChange: (Boolean) -> Unit,
     onPreset: (Int, Int, Boolean) -> Unit,
+    customPresets: List<CustomPreset>,
+    onCustomPreset: (CustomPreset) -> Unit,
+    onCustomPresetRemove: (Int) -> Unit,
+    onSavePreset: () -> Boolean,
     onCreate: () -> Unit,
 ) {
     Column(
@@ -131,6 +146,21 @@ private fun NewSessionForm(
                 AssistChip(
                     onClick = { onPreset(preset.min, preset.max, preset.allowRepeats) },
                     label = { Text(stringResource(preset.titleRes())) },
+                )
+            }
+            // Пользовательские пресеты: тап — применить, долгий тап — удалить.
+            customPresets.forEachIndexed { index, preset ->
+                CustomPresetChip(
+                    preset = preset,
+                    onClick = { onCustomPreset(preset) },
+                    onRemove = { onCustomPresetRemove(index) },
+                )
+            }
+            // «Сохранить пресет» доступно для чисел и кубиков.
+            if (state.mode == NewSessionMode.NUMBERS || state.mode == NewSessionMode.DICE) {
+                AssistChip(
+                    onClick = { onSavePreset() },
+                    label = { Text(stringResource(R.string.preset_save)) },
                 )
             }
         }
@@ -331,6 +361,10 @@ private fun NewSessionScreenPreview() {
             onDiceSidesChange = {},
             onWithoutRepeatsChange = {},
             onPreset = { _, _, _ -> },
+            customPresets = emptyList(),
+            onCustomPreset = {},
+            onCustomPresetRemove = {},
+            onSavePreset = { false },
             onCreate = {},
         )
     }
@@ -343,4 +377,39 @@ private fun RangePreset.titleRes(): Int = when (this) {
     RangePreset.COIN -> R.string.preset_coin
     RangePreset.LOTTERY -> R.string.preset_lottery
     RangePreset.HUNDRED -> R.string.preset_hundred
+}
+
+/** Чип пользовательского пресета: короткий тап применяет, долгий — удаляет. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CustomPresetChip(
+    preset: CustomPreset,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val label = when (preset.kind) {
+        CustomPreset.PresetKind.NUMBERS ->
+            "${preset.min}..${preset.max}" +
+                if (preset.allowRepeats) "" else stringResource(R.string.title_without_repeats_suffix)
+
+        CustomPreset.PresetKind.DICE -> "${preset.diceCount}d${preset.diceSides}"
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onRemove,
+            ),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
 }

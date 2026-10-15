@@ -2,6 +2,7 @@ package CodeSyS.Random_Number.ui.settings
 
 import CodeSyS.Random_Number.data.AccentColor
 import CodeSyS.Random_Number.data.AppSettings
+import CodeSyS.Random_Number.data.CustomPreset
 import CodeSyS.Random_Number.data.SettingsRepository
 import CodeSyS.Random_Number.data.ThemeMode
 import kotlinx.coroutines.Dispatchers
@@ -148,6 +149,19 @@ class SettingsViewModelTest {
 
         override suspend fun setFeedbackPerNumber(enabled: Boolean) {
             state.update { it.copy(feedbackPerNumber = enabled) }
+        }
+
+        private val presets = MutableStateFlow<List<CustomPreset>>(emptyList())
+        override val customPresets: StateFlow<List<CustomPreset>> = presets.asStateFlow()
+
+        override suspend fun addCustomPreset(preset: CustomPreset) {
+            presets.update { current ->
+                if (current.none { it == preset }) current + preset else current
+            }
+        }
+
+        override suspend fun removeCustomPresetAt(index: Int) {
+            presets.update { current -> current.filterIndexed { i, _ -> i != index } }
         }
     }
 }

@@ -1,6 +1,7 @@
 package CodeSyS.Random_Number.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.Serializable
 
 /** Режим темы: следовать системе, всегда светлая или всегда тёмная. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -44,6 +45,33 @@ data class AppSettings(
 }
 
 /**
+ * Пользовательский пресет, сохранённый из формы новой сессии.
+ *
+ * Для режима чисел значимы [min]/[max]/[allowRepeats]; для кубиков —
+ * [diceCount]/[diceSides]. Название не хранится: отображается из значений
+ * («1..100», «2d6»), чтобы не зависеть от локали при переходах.
+ */
+@Serializable
+data class CustomPreset(
+    val kind: PresetKind,
+    val min: Int = 0,
+    val max: Int = 0,
+    val allowRepeats: Boolean = false,
+    val diceCount: Int = 0,
+    val diceSides: Int = 0,
+) {
+    /** Режим пресета. */
+    @Serializable
+    enum class PresetKind {
+        /** Пресет чисел из диапазона. */
+        NUMBERS,
+
+        /** Пресет набора кубиков. */
+        DICE,
+    }
+}
+
+/**
  * Хранилище настроек приложения.
  *
  * [settings] эмитит текущее значение при каждой изменении.
@@ -67,4 +95,13 @@ interface SettingsRepository {
 
     /** Включает/выключает отклик на каждое число в батче. */
     suspend fun setFeedbackPerNumber(enabled: Boolean)
+
+    /** Пользовательские пресеты («сохранить пресет», приоритет EiE). */
+    val customPresets: Flow<List<CustomPreset>>
+
+    /** Добавляет пользовательский пресет; дубликаты не сохраняются. */
+    suspend fun addCustomPreset(preset: CustomPreset)
+
+    /** Удаляет пользовательский пресет по индексу списка [customPresets]. */
+    suspend fun removeCustomPresetAt(index: Int)
 }
