@@ -2,15 +2,22 @@ package CodeSyS.Random_Number.ui
 
 import CodeSyS.Random_Number.R
 import CodeSyS.Random_Number.domain.CoinSide
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,6 +27,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +43,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,10 +55,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +72,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 
@@ -91,6 +108,15 @@ private fun staggerMillis(index: Int): Int = (index * 60).coerceAtMost(420)
 
 /** Максимальный угол наклона кубика во время прокрутки. */
 private const val ROLL_TILT_DEGREES = 14f
+
+/** Дальность «въезда» кубика при новом броске. */
+private const val DICE_SLIDE_DP = 96
+
+/** Число частиц конфетти. */
+private const val CONFETTI_PARTICLES = 26
+
+/** Длительность одного цикла падения конфетти. */
+private const val CONFETTI_LOOP_MILLIS = 2600
 
 /**
  * Запускает «прокрутку» токена: [CYCLES] случайных смен граней с наклоном,
@@ -355,8 +381,10 @@ private fun CoinToken(
             }
         }
     }
-    LaunchedEffect(nonce) {
+    val view = LocalView.current
+    LaunchedEffect(nonce, view) {
         delay(settleDelay)
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         settle.settle()
     }
 
@@ -411,6 +439,9 @@ private fun DiceToken(
     val scale = remember { Animatable(1f) }
     val settleDelay = staggerMillis(index) + (CYCLES + 1) * CYCLE_MILLIS / 2
     val hasPips = faces <= PIP_DICE_MAX_FACES
+    // «Въезд» кубика на стол при новом броске: 1 — сдвинут, 0 — на месте.
+    val slide = remember { Animatable(1f) }
+    val view = LocalView.current
 
     LaunchedEffect(nonce) {
         runRoll(rotation, staggerMillis(index).toLong()) {
@@ -419,7 +450,11 @@ private fun DiceToken(
         faceValue = target
     }
     LaunchedEffect(nonce) {
+        slide.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy))
+    }
+    LaunchedEffect(nonce, view) {
         delay(settleDelay.toLong())
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         scale.settle()
     }
 
@@ -431,6 +466,7 @@ private fun DiceToken(
                 rotationZ = rotation.value
                 scaleX = scale.value
                 scaleY = scale.value
+                translationX = slide.value * DICE_SLIDE_DP.dp.toPx()
             }
             .semantics { contentDescription = "$desc: $target" }
             .clip(shape)
@@ -502,6 +538,157 @@ private fun DicePips(
         }
     }
 }
+
+/**
+ * Карточка результата режима перемешивания: элементы последней
+ * перестановки чипами, которые при новом броске «перестраиваются» —
+ * каждый чип появляется с упругим pop-эффектом со сдвигом по номеру.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ShuffleResultCard(
+    items: List<String>,
+    nonce: Int,
+    onCopy: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ResultCard(
+        title = stringResource(R.string.last_result),
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        copyValue = items.joinToString(" → "),
+        onCopy = onCopy,
+        modifier = modifier,
+    ) {
+        AnimatedContent(
+            targetState = nonce,
+            transitionSpec = { fadeIn(tween(60)).togetherWith(fadeOut(tween(60))) },
+        ) { _ ->
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            ) {
+                items.forEachIndexed { index, item ->
+                    ShuffleToken(text = item, index = index)
+                }
+            }
+        }
+    }
+}
+
+/** Чип элемента перестановки с pop-появлением (со сдвигом по номеру). */
+@Composable
+private fun ShuffleToken(text: String, index: Int) {
+    val pop = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(staggerMillis(index).toLong())
+        pop.animateTo(
+            1f,
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium,
+            ),
+        )
+    }
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.background,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = pop.value
+                    scaleY = pop.value
+                    alpha = pop.value.coerceIn(0f, 1f)
+                }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/**
+ * Оверлей-конфетти: бесконечная ленивая анимация падающих цветных
+ * полосок поверх контента (например, диалога «Всё выбрано»).
+ * Не перехватывает касания — рисуется только в [modifier] области.
+ */
+@Composable
+fun ConfettiOverlay(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "confetti")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(CONFETTI_LOOP_MILLIS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "fall",
+    )
+    val particles = remember {
+        List(CONFETTI_PARTICLES) {
+            ConfettiParticle(
+                drift = Random.nextFloat(),
+                phase = Random.nextFloat(),
+                fallSpeed = 0.7f + Random.nextFloat() * 0.6f,
+                colorIndex = Random.nextInt(4),
+                spin = (Random.nextFloat() - 0.5f) * 720f,
+                widthFraction = 0.012f + Random.nextFloat() * 0.010f,
+                heightFraction = 0.022f + Random.nextFloat() * 0.016f,
+            )
+        }
+    }
+    val palette = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.error,
+    )
+
+    Canvas(modifier = modifier) {
+        particles.forEach { particle ->
+            // Локальный прогресс падения частицы — с фазой и своей скоростью.
+            val fall = (progress * particle.fallSpeed + particle.phase) % 1f
+            val alpha = when {
+                fall < 0.08f -> fall / 0.08f
+                fall > 0.85f -> (1f - fall) / 0.15f
+                else -> 1f
+            }
+            val x = particle.drift * size.width +
+                sin(fall * 2 * PI).toFloat() * size.width * 0.02f
+            val y = fall * size.height
+            withTransform({
+                rotate(degrees = particle.spin * fall, pivot = Offset(x, y))
+            }) {
+                drawRoundRect(
+                    color = palette[particle.colorIndex].copy(alpha = alpha.coerceIn(0f, 1f)),
+                    topLeft = Offset(
+                        x - size.width * particle.widthFraction / 2f,
+                        y - size.height * particle.heightFraction / 2f,
+                    ),
+                    size = Size(
+                        size.width * particle.widthFraction,
+                        size.height * particle.heightFraction,
+                    ),
+                    cornerRadius = CornerRadius(size.width * 0.005f),
+                )
+            }
+        }
+    }
+}
+
+/** Параметры одной частицы конфетти (случайные, фиксированные на сеанс). */
+private data class ConfettiParticle(
+    val drift: Float,
+    val phase: Float,
+    val fallSpeed: Float,
+    val colorIndex: Int,
+    val spin: Float,
+    val widthFraction: Float,
+    val heightFraction: Float,
+)
 
 /** Предпросмотр: несколько монет. */
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)

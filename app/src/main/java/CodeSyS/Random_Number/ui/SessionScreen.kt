@@ -301,6 +301,14 @@ private fun SessionContent(
                 )
             }
 
+            session.isShuffleMode && state.lastDisplay != null -> {
+                ShuffleResultCard(
+                    items = session.lastShuffle(texts).orEmpty(),
+                    nonce = session.generatedCount,
+                    onCopy = onCopy,
+                )
+            }
+
             else -> BigNumberCard(
                 value = state.lastDisplay ?: "—",
                 onCopy = onCopy,
@@ -328,18 +336,6 @@ private fun SessionContent(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = DiceRoll.formatDetail(roll),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // Последняя перестановка списка (2.4).
-        if (session.isShuffleMode) {
-            session.lastShuffle?.let { order ->
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = order.joinToString(" → "),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -903,7 +899,13 @@ private fun ExhaustedDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exhausted_title)) },
-        text = { Text(stringResource(R.string.exhausted_message)) },
+        text = {
+            Box {
+                Text(stringResource(R.string.exhausted_message))
+                // Конфетти сверху: весь диапазон выбран — повод для праздника.
+                ConfettiOverlay(modifier = Modifier.matchParentSize())
+            }
+        },
         confirmButton = {
             TextButton(onClick = onNewSession) { Text(stringResource(R.string.new_session)) }
         },
