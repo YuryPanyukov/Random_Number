@@ -504,6 +504,15 @@ private fun SessionContent(
             if (state.showStats) {
                 Spacer(Modifier.height(8.dp))
                 SessionStatsCard(stats = state.stats)
+                // Гистограмма распределения (3.10): числа и значения кубиков.
+                if (session.generated.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    SessionHistogram(
+                        values = session.generated,
+                        min = session.min,
+                        max = session.max,
+                    )
+                }
             }
             Spacer(Modifier.height(16.dp))
         }
