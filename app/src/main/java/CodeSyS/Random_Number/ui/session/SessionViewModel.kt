@@ -320,6 +320,23 @@ class SessionViewModel(
         )
     }
 
+    /**
+     * Удаляет из истории целую группу записей: [count] штук, начиная
+     * с [index] — например, целый бросок кубиков.
+     */
+    fun removeRoll(index: Int, count: Int) = enqueue {
+        val session = session ?: return@enqueue this
+        val updated = runCatching { session.removeGeneratedRange(index, count, at = clock()) }
+            .getOrNull() ?: return@enqueue this
+        if (!persist(updated)) return@enqueue this
+        copy(
+            session = updated,
+            lastNumber = updated.lastNumber,
+            lastDisplay = updated.lastDisplay(texts),
+            stats = statsFor(updated),
+        )
+    }
+
     /** Удаляет число истории по индексу. */
     fun removeNumber(index: Int) = enqueue {
         val session = session ?: return@enqueue this

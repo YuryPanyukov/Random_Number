@@ -66,6 +66,35 @@ class SessionDiceTest {
     }
 
     @Test
+    fun `removeGeneratedRange - removes a whole roll and keeps the others`() {
+        val session = session(
+            count = 2,
+            log = listOf(
+                GeneratedEntry(3, 0L),
+                GeneratedEntry(5, 0L),
+                GeneratedEntry(6, 1L),
+                GeneratedEntry(1, 1L),
+            ),
+        )
+
+        val updated = session.removeGeneratedRange(index = 2, count = 2, at = 2L)
+
+        assertEquals(listOf(3, 5), updated.generated)
+        assertEquals(listOf(3, 5), updated.lastDiceRoll)
+        assertEquals(2L, updated.lastUsedAt)
+    }
+
+    @Test
+    fun `removeGeneratedRange - rejects out of bounds ranges`() {
+        val session = session(count = 2, log = listOf(GeneratedEntry(3, 0L)))
+
+        runCatching { session.removeGeneratedRange(index = 5, count = 2, at = 1L) }
+            .onSuccess { error("Ошибка обязательна") }
+        runCatching { session.removeGeneratedRange(index = 0, count = 5, at = 1L) }
+            .onSuccess { error("Ошибка обязательна") }
+    }
+
+    @Test
     fun `lastDiceRoll - null until a full roll is present`() {
         val session = session(count = 3, log = listOf(GeneratedEntry(4, 0L)))
 

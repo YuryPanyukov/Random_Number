@@ -166,6 +166,7 @@ fun SessionScreen(
             onNewSession = onNewSession,
             onBatchSizeChange = viewModel::setBatchSize,
             onRemoveNumber = viewModel::removeNumber,
+            onRemoveRoll = viewModel::removeRoll,
             onAddManual = viewModel::addManualNumber,
             onCopy = { clipboard.setText(AnnotatedString(it)) },
             onShare = {
@@ -218,6 +219,7 @@ private fun SessionContent(
     onNewSession: () -> Unit,
     onBatchSizeChange: (Int) -> Unit,
     onRemoveNumber: (Int) -> Unit,
+    onRemoveRoll: (Int, Int) -> Unit,
     onAddManual: (Int) -> Unit,
     onCopy: (String) -> Unit,
     onShare: () -> Unit,
@@ -447,17 +449,41 @@ private fun SessionContent(
             }
         }
 
-        // История выданных значений: ленивый список с кнопкой «показать ещё»
+        // История выданных значений: ленивый список с кнопкой «показать ещё».
+        // У кубиков записи группируются по броскам: чип = «сумма (4 · 2 · 6)».
         if (session.generated.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
-            HistorySection(
-                history = session.log.indices
+            val diceCount = (session.payload as? SessionPayload.Dice)?.count ?: 1
+            val historyEntries: List<HistoryEntry> = if (session.isDiceMode && diceCount > 1) {
+                session.log.chunked(diceCount)
                     .reversed()
-                    .map { it to session.displayOf(session.log[it].value, texts) },
+                    .mapIndexed { fromEnd, chunk ->
+                        HistoryEntry(
+                            // Индекс первой записи броска в журнале.
+                            index = session.log.size - chunk.size - fromEnd * diceCount,
+                            display = run {
+                                val values = chunk.map { it.value }
+                                val sum = values.sum()
+                                if (chunk.size > 1) "$sum (${values.joinToString(" · ")})" else "$sum"
+                            },
+                            count = chunk.size,
+                        )
+                    }
+            } else {
+                session.log.indices.reversed().map { entryIndex ->
+                    HistoryEntry(
+                        index = entryIndex,
+                        display = session.displayOf(session.log[entryIndex].value, texts),
+                        count = 1,
+                    )
+                }
+            }
+            HistorySection(
+                history = historyEntries,
                 visible = historyVisible,
                 onToggle = { historyVisible = !historyVisible },
                 onCopy = onCopy,
-                onRemove = onRemoveNumber,
+                onRemove = onRemoveRoll,
             )
         }
 
@@ -705,24 +731,34 @@ private fun BigNumberCard(
 }
 
 /**
- * История сгенерированных чисел: чипы с долгим нажатием —
- * меню «Копировать»/«Удалить» (1.3, 1.6).
+ * Запись истории: первый индекс в журнале, готовый к показу текст и
+ * сколько записей журнала убирает «Удалить» (1 у обычных значений,
+ * целый бросок у кубиков).
+ */
+private data class HistoryEntry(
+    val index: Int,
+    val display: String,
+    val count: Int,
+)
+
+/**
+ * История сгенерированных значений: чипы с долгим нажатием —
+ * меню «Копировать»/«Удалить» (1.3, 1.6). У кубиков чип — целый бросок.
  *
  * Список ленивый и постраничный: длинная история не тормозит экран.
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun HistorySection(
-    history: List<Pair<Int, String>>,
+    history: List<HistoryEntry>,
     visible: Boolean,
     onToggle: () -> Unit,
     onCopy: (String) -> Unit,
-    onRemove: (Int) -> Unit,
+    onRemove: (Int, Int) -> Unit,
 ) {
-    // Индекс в журнале и значение: при изменении истории меню не
-    // «перепрыгнет» на чужую запись.
-    var menuIndex by remember { mutableStateOf<Int?>(null) }
-    var menuValue by remember { mutableStateOf<String?>(null) }
+    // Запись целиком (индекс + текст + размер): при изменении истории меню
+    // не «перепрыгнет» на чужую запись.
+    var menuEntry by remember { mutableStateOf<HistoryEntry?>(null) }
     var shown by remember(history.size) { mutableIntStateOf(HISTORY_PAGE) }
     val listState = rememberLazyListState()
     val longPressHint = stringResource(R.string.long_press_hint)
@@ -762,9 +798,8 @@ private fun HistorySection(
                 .padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(items = page, key = { it.first }) { entry ->
-                val index = entry.first
-                val value = entry.second
+            items(items = page, key = { it.index }) { entry ->
+                val value = entry.display
                 val deleteLabel = stringResource(R.string.delete)
                 val copyLabel = stringResource(R.string.copy)
                 Box {
@@ -781,10 +816,7 @@ private fun HistorySection(
                             }
                             .combinedClickable(
                                 onClick = {},
-                                onLongClick = {
-                                    menuIndex = index
-                                    menuValue = value
-                                },
+                                onLongClick = { menuEntry = entry },
                                 onLongClickLabel = copyLabel,
                             ),
                     ) {
@@ -795,26 +827,21 @@ private fun HistorySection(
                         )
                     }
                     DropdownMenu(
-                        expanded = menuIndex == index && menuValue == value,
-                        onDismissRequest = {
-                            menuIndex = null
-                            menuValue = null
-                        },
+                        expanded = menuEntry == entry,
+                        onDismissRequest = { menuEntry = null },
                     ) {
                         DropdownMenuItem(
                             text = { Text(copyLabel) },
                             onClick = {
                                 onCopy(value)
-                                menuIndex = null
-                                menuValue = null
+                                menuEntry = null
                             },
                         )
                         DropdownMenuItem(
                             text = { Text(deleteLabel) },
                             onClick = {
-                                onRemove(index)
-                                menuIndex = null
-                                menuValue = null
+                                onRemove(entry.index, entry.count)
+                                menuEntry = null
                             },
                         )
                     }
@@ -1091,6 +1118,7 @@ private fun SessionScreenPreview() {
             onNewSession = {},
             onBatchSizeChange = {},
             onRemoveNumber = {},
+            onRemoveRoll = { _, _ -> },
             onAddManual = {},
             onCopy = {},
             onShare = {},

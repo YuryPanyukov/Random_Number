@@ -313,6 +313,25 @@ data class Session(
     }
 
     /**
+     * Возвращает копию сессии без [count] записей журнала, начиная
+     * с [index] (например, целый бросок кубиков).
+     *
+     * @throws IllegalArgumentException если диапазон вне границ истории.
+     */
+    fun removeGeneratedRange(index: Int, count: Int, at: Long): Session {
+        require(index in log.indices) {
+            "Некорректный индекс: $index (размер истории ${log.size})"
+        }
+        require(count >= 1 && index + count <= log.size) {
+            "Некорректный диапазон удаления: $index..${index + count - 1} из ${log.size}"
+        }
+        return copy(
+            log = log.filterIndexed { i, _ -> i !in index until index + count },
+            lastUsedAt = at,
+        )
+    }
+
+    /**
      * Возвращает копию сессии с числом, добавленным вручную
      * (например, выпавшим вне приложения).
      *
