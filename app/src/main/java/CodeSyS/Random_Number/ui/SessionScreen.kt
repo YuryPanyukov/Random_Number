@@ -172,6 +172,16 @@ fun SessionScreen(
             onShare = {
                 state.session?.let { session -> shareText(context, buildShareText(session, texts)) }
             },
+            onShareImage = {
+                val value = state.lastDisplay
+                val session = state.session
+                if (session != null && value != null) {
+                    shareResultCardImage(
+                        context,
+                        buildResultCardBitmap(title = texts.title(session), value = value),
+                    )
+                }
+            },
             onToggleStats = viewModel::toggleStats,
             onSetSeed = viewModel::setSeed,
             onDescriptionChange = viewModel::setDescription,
@@ -223,6 +233,7 @@ private fun SessionContent(
     onAddManual: (Int) -> Unit,
     onCopy: (String) -> Unit,
     onShare: () -> Unit,
+    onShareImage: () -> Unit,
     onToggleStats: () -> Unit,
     onSetSeed: (Long?) -> Unit,
     onSaveHistory: (HistoryExporter.Format) -> Unit,
@@ -441,12 +452,20 @@ private fun SessionContent(
             ) {
                 Text(stringResource(R.string.share))
             }
+            // PNG-карточка результата для соцсетей и мессенджеров.
             OutlinedButton(
-                onClick = onNewSession,
+                onClick = onShareImage,
                 modifier = Modifier.weight(1f),
+                enabled = state.lastDisplay != null,
             ) {
-                Text(stringResource(R.string.new_session))
+                Text(stringResource(R.string.share_image))
             }
+        }
+        OutlinedButton(
+            onClick = onNewSession,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.new_session))
         }
 
         // История выданных значений: ленивый список с кнопкой «показать ещё».
@@ -1131,6 +1150,7 @@ private fun SessionScreenPreview() {
             onAddManual = {},
             onCopy = {},
             onShare = {},
+            onShareImage = {},
             onToggleStats = {},
             onSetSeed = {},
             onDescriptionChange = {},

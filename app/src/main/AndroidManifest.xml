@@ -46,6 +46,17 @@
                 android:resource="@xml/latest_session_widget_info" />
         </receiver>
 
+        <!-- FileProvider для шаринга PNG-карточки результата (6.x). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Плитка быстрых настроек «Сгенерировать» (5.4). -->
         <service
             android:name=".widget.QuickGenerateTileService"
