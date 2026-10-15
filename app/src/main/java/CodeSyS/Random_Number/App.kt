@@ -6,6 +6,7 @@ import CodeSyS.Random_Number.data.SessionRepository
 import CodeSyS.Random_Number.data.SettingsRepository
 import CodeSyS.Random_Number.domain.NumberGenerator
 import CodeSyS.Random_Number.domain.SessionGenerator
+import CodeSyS.Random_Number.platform.DemoSessions
 import CodeSyS.Random_Number.platform.FeedbackProvider
 import CodeSyS.Random_Number.platform.HonestDraw
 import CodeSyS.Random_Number.platform.QuickGenerate
@@ -44,12 +45,31 @@ class AppContainer(context: Context) {
     /** Честный розыгрыш «в один тап»: seed из SecureRandom + первый розыгрыш. */
     val honestDraw: HonestDraw = HonestDraw(repository = sessionRepository)
 
+    /** Демо-сессии первого запуска (см. [DemoSessions]). */
+    private val demoSessions = DemoSessions(
+        repository = sessionRepository,
+        demoSeeded = settingsRepository.demoSeeded,
+        markDemoSeeded = { settingsRepository.setDemoSeeded() },
+    )
+
     /**
      * Перерисовывает виджет «последняя сессия» после изменения данных
      * из приложения (виджет показывает снимок, а не live-данные).
      */
     fun refreshLatestSessionWidget() {
         appScope.launch { LatestSessionWidget().refresh(appContext) }
+    }
+
+    /**
+     * Первый запуск: демо-сессии в меню вместо пустого экрана.
+     * Запускается один раз за процесс; идемпотентность обеспечивает
+     * флаг настроек и проверка пустоты хранилища.
+     */
+    fun seedDemoSessions() {
+        appScope.launch {
+            val created = demoSessions.seedIfFirstRun()
+            if (created.isNotEmpty()) refreshLatestSessionWidget()
+        }
     }
 
     /** Освобождает ресурсы, удерживаемые контейнером (системные сервисы). */
@@ -66,6 +86,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        container.seedDemoSessions()
     }
 
     override fun onTerminate() {

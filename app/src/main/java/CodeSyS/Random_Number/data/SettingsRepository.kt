@@ -104,4 +104,10 @@ interface SettingsRepository {
 
     /** Удаляет пользовательский пресет по индексу списка [customPresets]. */
     suspend fun removeCustomPresetAt(index: Int)
+
+    /** `true`, если демо-сессии первого запуска уже создавались. */
+    val demoSeeded: Flow<Boolean>
+
+    /** Помечает демо-сессии первого запуска созданными. */
+    suspend fun setDemoSeeded()
 }

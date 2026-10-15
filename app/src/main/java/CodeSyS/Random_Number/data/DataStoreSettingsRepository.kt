@@ -32,6 +32,7 @@ class DataStoreSettingsRepository(
     private val soundKey = booleanPreferencesKey("sound_enabled")
     private val feedbackPerNumberKey = booleanPreferencesKey("feedback_per_number")
     private val customPresetsKey = stringPreferencesKey("custom_presets")
+    private val demoSeededKey = booleanPreferencesKey("demo_seeded")
 
     override val settings: Flow<AppSettings> = context.settingsDataStore.data.map { prefs ->
         AppSettings(
@@ -83,6 +84,13 @@ class DataStoreSettingsRepository(
                     (current - current[index]).toStoreValue()
             }
         }
+    }
+
+    override val demoSeeded: Flow<Boolean> =
+        context.settingsDataStore.data.map { prefs -> prefs[demoSeededKey] ?: false }
+
+    override suspend fun setDemoSeeded() {
+        context.settingsDataStore.edit { it[demoSeededKey] = true }
     }
 }
 

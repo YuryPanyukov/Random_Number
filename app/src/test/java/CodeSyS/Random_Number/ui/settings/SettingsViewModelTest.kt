@@ -154,6 +154,13 @@ class SettingsViewModelTest {
         private val presets = MutableStateFlow<List<CustomPreset>>(emptyList())
         override val customPresets: StateFlow<List<CustomPreset>> = presets.asStateFlow()
 
+        private val demoSeededFlag = MutableStateFlow(false)
+        override val demoSeeded: StateFlow<Boolean> = demoSeededFlag.asStateFlow()
+
+        override suspend fun setDemoSeeded() {
+            demoSeededFlag.value = true
+        }
+
         override suspend fun addCustomPreset(preset: CustomPreset) {
             presets.update { current ->
                 if (current.none { it == preset }) current + preset else current
