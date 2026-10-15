@@ -24,3 +24,6 @@ local.properties
 /shot_*.png
 /ui_dump.xml
 /emulator.log
+
+# Кэш компилятора Kotlin
+/.kotlin/

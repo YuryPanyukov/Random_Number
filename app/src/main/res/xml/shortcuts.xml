@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new"
+        android:shortcutId="new_session"
+        android:shortcutLongLabel="@string/shortcut_new_long"
+        android:shortcutShortLabel="@string/shortcut_new_short">
+        <intent
+            android:action="CodeSyS.Random_Number.action.NEW_SESSION"
+            android:targetClass="CodeSyS.Random_Number.MainActivity"
+            android:targetPackage="ru.codesys.randomnumber" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_last"
+        android:shortcutId="last_session"
+        android:shortcutLongLabel="@string/shortcut_last_long"
+        android:shortcutShortLabel="@string/shortcut_last_short">
+        <intent
+            android:action="CodeSyS.Random_Number.action.LAST_SESSION"
+            android:targetClass="CodeSyS.Random_Number.MainActivity"
+            android:targetPackage="ru.codesys.randomnumber" />
+    </shortcut>
+</shortcuts>

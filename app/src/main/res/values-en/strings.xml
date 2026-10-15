@@ -1,0 +1,204 @@
+<resources>
+    <string name="app_name">Random Numbers</string>
+
+    <!-- Общие -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="copy">Copy</string>
+    <string name="share">Share</string>
+    <string name="loading">Loading…</string>
+
+    <!-- Главный экран -->
+    <string name="new_session">New session</string>
+    <string name="no_sessions">No saved sessions</string>
+    <string name="no_sessions_hint">Tap “New session” to start generating.</string>
+    <string name="delete_session_title">Delete session?</string>
+    <string name="delete_session_message">Session “%s” will be deleted permanently.</string>
+    <string name="session_generated_count">Generated numbers: %d</string>
+    <string name="session_progress">Picked %1$d of %2$d</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="session_duplicated">Session duplicated</string>
+    <string name="search_hint">Search by title and tags</string>
+    <string name="filter_all">All</string>
+    <string name="filter_favorites">Favorites</string>
+    <string name="filter_archive">Archive</string>
+    <string name="sort_date">By date</string>
+    <string name="sort_title">By name</string>
+    <string name="sort_progress">By progress</string>
+    <string name="nothing_found">Nothing found</string>
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+    <string name="archive">Archive</string>
+    <string name="unarchive">Unarchive</string>
+    <string name="tags_title">Tags</string>
+    <string name="tags_label">Tags separated by commas</string>
+    <string name="tags_hint">Used for search</string>
+    <string name="save">Save</string>
+
+    <!-- Экран сессии -->
+    <string name="session_description_hint">Note (does not affect generation)</string>
+    <string name="edit_session">Edit session</string>
+    <string name="edit_title">Title</string>
+    <string name="edit_range_from">From</string>
+    <string name="edit_range_to">To</string>
+    <string name="edit_allow_repeats">Allow repeats</string>
+    <string name="edit_items_label">Items (one per line)</string>
+    <string name="edit_dice_count">How many dice</string>
+    <string name="edit_dice_sides">How many sides</string>
+    <string name="edit_save">Save</string>
+    <string name="generation">Generation</string>
+    <string name="last_number">Last number</string>
+    <string name="last_result">Last result</string>
+    <string name="generate">Generate</string>
+    <string name="batch_size">How many numbers to generate</string>
+    <string name="batch_partial_notice">Fewer numbers were issued than requested: asked for %1$d, already picked %2$d of %3$d</string>
+    <string name="undo_last">Undo last</string>
+    <string name="reset_numbers">Reset numbers</string>
+    <string name="add_manual">Add manually</string>
+    <string name="out_of_range">Number is out of range %1$d..%2$d</string>
+    <string name="duplicate_number">This number is already in the history</string>
+    <string name="history">History</string>
+    <plurals name="history_count">
+        <item quantity="one">%d number</item>
+        <item quantity="other">%d numbers</item>
+    </plurals>
+    <string name="history_hide">Hide</string>
+    <string name="history_show">Show</string>
+    <string name="history_show_more">Show more (%1$d)</string>
+    <string name="long_press_hint">Long press for actions</string>
+    <string name="exhausted_title">All numbers picked!</string>
+    <string name="exhausted_message">There are no numbers left without repeats. Create a new session or continue the current one after resetting the picked numbers.</string>
+    <string name="continue_reset">Continue with reset</string>
+
+    <!-- Session statistics -->
+    <string name="stats_title">Statistics</string>
+    <string name="stats_empty">History is empty — statistics appear after generating</string>
+    <string name="stats_generated">Issued</string>
+    <string name="stats_unique">Unique</string>
+    <string name="stats_duplicates">Duplicates</string>
+    <string name="stats_range">Value range</string>
+    <string name="stats_range_value">%1$d..%2$d</string>
+    <string name="stats_average">Average</string>
+    <string name="stats_median">Median</string>
+    <string name="stats_most_frequent">Most frequent</string>
+    <string name="stats_least_frequent">Least frequent</string>
+    <string name="show_stats">Statistics</string>
+
+    <!-- Export and seed -->
+    <string name="export_history">Save history</string>
+    <string name="export_sessions">Save all sessions</string>
+    <string name="import_sessions">Import sessions</string>
+    <string name="import_done">Sessions imported: %1$d</string>
+    <string name="import_failed">Could not read the sessions file</string>
+    <string name="export_format_csv">CSV (with timestamps)</string>
+    <string name="export_format_txt">TXT (number list)</string>
+    <string name="export_format_json">JSON (whole session)</string>
+    <string name="export_format_markdown">Markdown (table with timestamps)</string>
+    <string name="export_save">Save to file</string>
+    <string name="seed">Seed (reproducibility)</string>
+    <string name="seed_hint">The same seed reproduces the same sequence</string>
+    <string name="seed_set">Lock</string>
+    <string name="seed_clear">Clear</string>
+    <string name="seed_invalid">Enter an integer</string>
+    <string name="seed_active">Seed: %1$d</string>
+
+    <!-- Widget and tile -->
+    <string name="widget_label">Latest session</string>
+    <string name="widget_description">The last value of a session and a “Generate” button</string>
+    <string name="tile_label">Generate</string>
+    <string name="widget_generate">Generate</string>
+    <string name="widget_no_sessions">No sessions</string>
+
+    <!-- Home screen shortcuts -->
+    <string name="shortcut_new_short">New</string>
+    <string name="shortcut_new_long">New session</string>
+    <string name="shortcut_last_short">Latest</string>
+    <string name="shortcut_last_long">Latest session</string>
+
+    <!-- Mode picker -->
+    <string name="mode_picker_title">What to generate?</string>
+    <string name="mode_numbers_hint">A random number in a chosen range</string>
+    <string name="mode_items_hint">A random item from your list</string>
+    <string name="mode_dice_hint">A roll of several dice and their sum</string>
+    <string name="mode_coin_hint">Heads or tails</string>
+    <string name="mode_shuffle_hint">A random order of list items</string>
+
+    <!-- Новая сессия -->
+    <string name="mode_numbers">Numbers</string>
+    <string name="mode_items">List</string>
+    <string name="mode_dice">Dice</string>
+    <string name="mode_coin">Coin</string>
+    <string name="mode_shuffle">Shuffle</string>
+    <string name="items_label">Items (one per line)</string>
+    <string name="items_hint">Blank lines and duplicates are ignored</string>
+    <string name="shuffle_label">Items to shuffle (one per line)</string>
+    <string name="shuffle_hint">At least two items are required; each tap gives a new order</string>
+    <string name="dice_count">Number of dice</string>
+    <string name="dice_sides">Sides per die</string>
+    <string name="coin_hint">The coin is flipped repeatedly; the result is heads or tails</string>
+    <string name="coin_stats">Heads: %1$d · Tails: %2$d</string>
+    <string name="range_from">From</string>
+    <string name="range_to">To</string>
+    <string name="invalid_number">Enter an integer</string>
+    <string name="range_error">“From” cannot be greater than “To”</string>
+    <string name="allow_repeats">No repeats</string>
+    <string name="allow_repeats_hint">Previously generated numbers will not appear again</string>
+    <string name="start_session">Start generating</string>
+
+    <!-- Fair draw -->
+    <string name="honest_draw_title">Fair draw</string>
+    <string name="honest_draw_hint">The seed comes from a cryptographic source and is stored in the session — the result can be verified.</string>
+    <string name="honest_draw_number">Number 1–100</string>
+    <string name="honest_draw_list">From a list</string>
+    <string name="honest_draw_list_title">Draw participants</string>
+    <string name="honest_draw_list_label">Names (one per line)</string>
+    <string name="honest_draw_list_hint">Blank lines and duplicates are ignored</string>
+    <string name="honest_draw_list_min">At least two participants are required</string>
+    <string name="honest_draw_start">Run the draw</string>
+    <string name="honest_draw_failed">Could not run the draw</string>
+
+    <!-- Пресеты диапазонов -->
+    <string name="presets">Quick ranges</string>
+    <string name="preset_dice">Dice 1–6</string>
+    <string name="preset_coin">Coin 0–1</string>
+    <string name="preset_lottery">Lottery 1–45</string>
+    <string name="preset_hundred">Hundred 1–100</string>
+
+    <!-- Session titles and service strings -->
+    <string name="title_without_repeats_suffix">, no repeats</string>
+    <string name="title_list">List (%1$d)</string>
+    <string name="title_coin">Coin</string>
+    <string name="title_shuffle">Shuffle (%1$d)</string>
+    <string name="title_honest_draw">Fair draw</string>
+    <string name="title_honest_draw_list">Fair draw (list)</string>
+    <string name="coin_heads">Heads</string>
+    <string name="coin_tails">Tails</string>
+    <string name="export_range_items">%1$d items</string>
+    <string name="export_range_coin">Heads/Tails</string>
+    <string name="export_range_numbers">%1$d..%2$d</string>
+    <string name="export_markdown_value">Value</string>
+    <string name="export_markdown_time">Time</string>
+    <string name="export_unknown_time">—</string>
+    <string name="share_manual_seed_source">set manually</string>
+    <string name="share_verification_hint">Verification: the same seed reproduces the sequence.</string>
+
+    <!-- Настройки -->
+    <string name="settings">Settings</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="accent_color">Accent color</string>
+    <string name="accent_dynamic">Dynamic</string>
+    <string name="accent_indigo">Indigo</string>
+    <string name="accent_teal">Teal</string>
+    <string name="accent_rose">Rose</string>
+    <string name="feedback_section">Generation feedback</string>
+    <string name="vibration">Vibration</string>
+    <string name="vibration_hint">Short vibration when a number is generated</string>
+    <string name="sound">Sound</string>
+    <string name="sound_hint">Short tone when a number is generated</string>
+    <string name="feedback_per_number">Feedback per number</string>
+    <string name="feedback_per_number_hint">Signal once per number in a batch instead of once per batch</string>
+</resources>
