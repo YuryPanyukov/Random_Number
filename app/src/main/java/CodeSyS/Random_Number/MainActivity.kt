@@ -6,6 +6,7 @@ import CodeSyS.Random_Number.ui.AppStartAction
 import CodeSyS.Random_Number.ui.LocalSessionTexts
 import CodeSyS.Random_Number.ui.rememberSessionTexts
 import CodeSyS.Random_Number.ui.startActionFor
+import CodeSyS.Random_Number.ui.theme.AppBackground
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
 import android.content.Intent
 import android.os.Bundle
@@ -41,10 +42,12 @@ class MainActivity : ComponentActivity() {
                     themeMode = settings.themeMode,
                     accent = settings.accent,
                 ) {
-                    AppNav(
-                        startAction = startAction.value,
-                        onStartActionHandled = { startAction.value = AppStartAction.NONE },
-                    )
+                    AppBackground {
+                        AppNav(
+                            startAction = startAction.value,
+                            onStartActionHandled = { startAction.value = AppStartAction.NONE },
+                        )
+                    }
                 }
             }
         }

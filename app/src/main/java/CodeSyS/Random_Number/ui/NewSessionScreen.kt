@@ -7,6 +7,7 @@ import CodeSyS.Random_Number.ui.newsession.NewSessionMode
 import CodeSyS.Random_Number.ui.newsession.NewSessionUiState
 import CodeSyS.Random_Number.ui.newsession.NewSessionViewModel
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
+import CodeSyS.Random_Number.ui.theme.SectionLabel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -38,12 +39,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -70,9 +73,11 @@ fun NewSessionScreen(
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.new_session)) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -136,9 +141,8 @@ private fun NewSessionForm(
             .padding(16.dp),
     ) {
         // Пресеты диапазонов: быстрый тап заполняет форму (1.5).
-        Text(
+        SectionLabel(
             text = stringResource(R.string.presets),
-            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 8.dp),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

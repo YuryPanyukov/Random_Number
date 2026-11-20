@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Фон иконки: вертикальный индиго-градиент. -->
+<!-- Фон иконки: диагональный сине-фиолетовый градиент бренда. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -13,10 +12,10 @@
                 android:type="linear"
                 android:startX="0"
                 android:startY="0"
-                android:endX="0"
+                android:endX="108"
                 android:endY="108">
-                <item android:offset="0" android:color="#FF5B6BE0" />
-                <item android:offset="1" android:color="#FF3A45A8" />
+                <item android:offset="0" android:color="#FF3B6EF6" />
+                <item android:offset="1" android:color="#FF8A5CF6" />
             </gradient>
         </aapt:attr>
     </path>

@@ -6,6 +6,7 @@ import CodeSyS.Random_Number.data.AppSettings
 import CodeSyS.Random_Number.data.ThemeMode
 import CodeSyS.Random_Number.ui.settings.SettingsViewModel
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
+import CodeSyS.Random_Number.ui.theme.SectionLabel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,11 +29,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -50,9 +53,11 @@ fun SettingsScreen(
     val settings by viewModel.uiState.collectAsState()
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings)) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -173,9 +178,8 @@ private fun SettingsContent(
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
+    SectionLabel(
         text = text,
-        style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(bottom = 8.dp),
     )
 }

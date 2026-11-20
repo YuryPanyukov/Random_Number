@@ -7,7 +7,11 @@ import CodeSyS.Random_Number.ui.home.HomeUiState
 import CodeSyS.Random_Number.ui.home.HomeViewModel
 import CodeSyS.Random_Number.ui.home.SessionFilter
 import CodeSyS.Random_Number.ui.home.SessionSort
+import CodeSyS.Random_Number.ui.theme.AppCard
+import CodeSyS.Random_Number.ui.theme.BrandTitle
 import CodeSyS.Random_Number.ui.theme.RandomNumbersTheme
+import CodeSyS.Random_Number.ui.theme.SectionLabel
+import CodeSyS.Random_Number.ui.theme.appTextFieldColors
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -27,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -39,8 +44,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +60,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,6 +71,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -161,10 +166,17 @@ fun HomeScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
+                title = {
+                    BrandTitle(
+                        title = stringResource(R.string.app_name),
+                        subtitle = stringResource(R.string.app_tagline),
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 actions = {
                     IconButton(
                         onClick = { openDocument.launch(arrayOf("application/json", "text/plain")) },
@@ -360,6 +372,12 @@ private fun HomeContent(
         item {
             HonestDrawCard(onNumber = onHonestNumber, onList = onHonestList)
         }
+        item {
+            SectionLabel(
+                text = stringResource(R.string.sessions_section),
+                modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+            )
+        }
 
         if (state.sessions.isEmpty() && !state.isLoading) {
             item { if (state.hasActiveSearch) NothingFound() else EmptyContent() }
@@ -408,9 +426,11 @@ private fun SearchAndSortRow(
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            label = { Text(stringResource(R.string.search_hint)) },
+            placeholder = { Text(stringResource(R.string.search_hint)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = appTextFieldColors(),
             modifier = Modifier.weight(1f),
         )
         Box {
@@ -486,18 +506,15 @@ private fun SessionCard(
     val tagsLabel = stringResource(R.string.tags_title)
 
     Box {
-        Card(
+        AppCard(
             modifier = Modifier
-                .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .combinedClickable(
                     onClick = onOpen,
                     onLongClick = onOpenMenu,
                     onLongClickLabel = duplicateLabel,
                 ),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
+            contentPadding = 0.dp,
         ) {
             Row(
                 modifier = Modifier
@@ -597,13 +614,10 @@ private fun HonestDrawCard(
     onNumber: () -> Unit,
     onList: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-        ),
+    AppCard(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentPadding = 0.dp,
     ) {
         Column(
             modifier = Modifier

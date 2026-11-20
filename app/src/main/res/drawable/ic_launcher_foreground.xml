@@ -14,18 +14,18 @@
 
     <!-- Пиппы (5 точек) -->
     <path
-        android:fillColor="#FF4655C6"
+        android:fillColor="#FF0A0C11"
         android:pathData="M38,38 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
     <path
-        android:fillColor="#FF4655C6"
+        android:fillColor="#FF0A0C11"
         android:pathData="M70,38 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
     <path
-        android:fillColor="#FFB8860B"
+        android:fillColor="#FF3B6EF6"
         android:pathData="M54,54 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
     <path
-        android:fillColor="#FF4655C6"
+        android:fillColor="#FF0A0C11"
         android:pathData="M38,70 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
     <path
-        android:fillColor="#FF4655C6"
+        android:fillColor="#FF0A0C11"
         android:pathData="M70,70 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
 </vector>

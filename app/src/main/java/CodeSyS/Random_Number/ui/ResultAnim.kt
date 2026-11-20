@@ -38,8 +38,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -271,7 +269,12 @@ private fun ResultCard(
     var menuOpen by remember { mutableStateOf(false) }
     val copyLabel = stringResource(R.string.copy)
 
-    Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor)) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = containerColor,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = .55f)),
+    ) {
         // Долгое нажатие в любом месте карточки — меню копирования.
         Box(
             modifier = Modifier

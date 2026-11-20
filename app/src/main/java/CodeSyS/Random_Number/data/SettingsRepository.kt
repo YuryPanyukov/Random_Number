@@ -8,10 +8,10 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Выбранный акцентный цвет палитры. */
 enum class AccentColor {
-    /** Динамическая тема системы (Android 12+), иначе индиго. */
+    /** Динамическая тема системы (Android 12+), иначе фирменный синий. */
     DYNAMIC,
 
-    /** Базовая индиго-палитра приложения. */
+    /** Базовая синяя палитра приложения. */
     INDIGO,
 
     /** Бирюзовый акцент. */
@@ -34,7 +34,7 @@ enum class AccentColor {
  */
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accent: AccentColor = AccentColor.DYNAMIC,
+    val accent: AccentColor = AccentColor.INDIGO,
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = false,
     val feedbackPerNumber: Boolean = false,
